@@ -38,6 +38,7 @@ const assets = [
 const state = {
   page: "dashboard",
   collapsed: false,
+  theme: localStorage.getItem("riskhub-theme") === "dark" ? "dark" : "light",
   role: "平台管理员",
   roleMenu: false,
   modal: null,
@@ -105,6 +106,7 @@ function pageMeta() {
 }
 
 function renderShell() {
+  document.documentElement.dataset.theme = state.theme;
   const [title, desc] = pageMeta();
   const navHtml = navGroups.map(group => `
     <div class="nav-section">
@@ -119,6 +121,7 @@ function renderShell() {
         <div class="brand"><div class="brand-mark">RH</div><div class="brand-name">RiskHub</div><span class="edition">DEMO</span></div>
         <div class="topbar-spacer"></div>
         <div class="global-search"><span class="search-glyph">⌕</span><input data-global-search placeholder="搜索风险编号、标题或资产"></div>
+        <button class="top-action theme-toggle" data-action="toggle-theme" aria-label="切换为${state.theme === "dark" ? "浅色" : "深色"}主题" title="切换主题"><span>${state.theme === "dark" ? "☼" : "◐"}</span><span class="action-label">${state.theme === "dark" ? "浅色" : "深色"}</span></button>
         <button class="top-action" data-action="alerts"><span>●</span><span class="action-label">提醒</span><span class="alert-count">6</span></button>
         <div class="user-menu-wrap">
           <button class="top-action" data-action="role-menu"><span>●</span><span class="action-label">${state.role}</span><span>⌄</span></button>
@@ -340,6 +343,12 @@ function updateSelectedStatus(status, message) {
 function handleAction(event) {
   const action = event.currentTarget.dataset.action;
   if (action === "toggle-sidebar") { state.collapsed = !state.collapsed; renderShell(); }
+  else if (action === "toggle-theme") {
+    state.theme = state.theme === "dark" ? "light" : "dark";
+    localStorage.setItem("riskhub-theme", state.theme);
+    renderShell();
+    toast(`已切换为${state.theme === "dark" ? "深色" : "浅色"}主题`);
+  }
   else if (action === "role-menu") { state.roleMenu = !state.roleMenu; renderShell(); }
   else if (action === "refresh") toast("数据已刷新，当前为模拟数据");
   else if (action === "alerts") toast("6 条提醒：2 项逾期，4 项待验证");
