@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 
 const technicalDesign = await readFile(new URL("../docs/TECHNICAL_DESIGN.md", import.meta.url), "utf8");
+const readme = await readFile(new URL("../README.md", import.meta.url), "utf8");
 
 const requiredSections = [
   "总体架构",
@@ -33,4 +34,19 @@ assert.match(technicalDesign, /designs\/risk-governance-demo/);
 assert.match(technicalDesign, /浅色和深色/);
 assert.match(technicalDesign, /10,000 条/);
 
-console.log("Technical design document checks passed.");
+for (const section of ["项目解决什么问题", "主要功能", "安装方法", "使用方法"]) {
+  assert.match(readme, new RegExp(`^## \\d+\\. ${section}$`, "m"));
+}
+
+for (const implementedCapability of ["自定义录入", "Excel 模板", "确定性去重", "风险接受", "资产中心", "接入中心", "治理配置", "审计日志", "浅色和深色主题"]) {
+  assert.match(readme, new RegExp(implementedCapability));
+}
+
+for (const command of ["uvicorn riskhub.main:app", "npm --prefix apps/web run dev", ".venv/bin/pytest"]) {
+  assert.ok(readme.includes(command), `README is missing command: ${command}`);
+}
+
+assert.match(readme, /不要直接使用 `file:\/\//);
+assert.match(readme, /尚未作为默认运行依赖接入/);
+
+console.log("Technical design and README checks passed.");
