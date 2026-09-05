@@ -28,6 +28,13 @@ const statusLabels: Record<FindingStatus, string> = {
 };
 const severityColors: Record<Severity, string> = { critical: "red", high: "orange", medium: "gold", low: "blue", info: "default" };
 
+function BrandMark({ large = false }: { large?: boolean }) {
+  return <span className={`riskhub-mark${large ? " riskhub-mark--large" : ""}`} role="img" aria-label="RiskHub 闭环治理标识">
+    <span className="riskhub-mark__loop" aria-hidden="true" />
+    <span className="riskhub-mark__check" aria-hidden="true" />
+  </span>;
+}
+
 function useCurrentUser(enabled: boolean) {
   return useQuery({ queryKey: ["me"], queryFn: () => api<User>("/api/v1/me"), enabled, retry: false });
 }
@@ -59,7 +66,7 @@ function LoginScreen({ onSuccess, colorMode, setColorMode }: { onSuccess: () => 
   return <div className="login-page">
     <button className="theme-float" onClick={() => setColorMode(colorMode === "dark" ? "light" : "dark")}>{colorMode === "dark" ? <SunOutlined /> : <MoonOutlined />}</button>
     <div className="login-card">
-      <div className="login-brand"><span>RH</span><strong>RiskHub</strong></div>
+      <div className="login-brand"><BrandMark large /><strong>RiskHub</strong><span className="brand-descriptor">RISK GOVERNANCE</span></div>
       <Title level={2}>风险聚合与闭环治理</Title>
       <Paragraph type="secondary">选择角色进入演示环境。所有账号使用本地种子数据，不连接外部系统。</Paragraph>
       <div className="role-options">
@@ -110,7 +117,7 @@ function AppShell({ user, onUserChange, onLogout, colorMode, setColorMode }: { u
   return <Layout className="app-layout">
     <Header className="top-header">
       <Button type="text" icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />} onClick={() => setCollapsed(!collapsed)} />
-      <div className="brand"><span className="brand-mark">RH</span><strong>RiskHub</strong><Tag color="blue">MVP</Tag></div>
+      <div className="brand"><BrandMark /><strong>RiskHub</strong><Tag color="blue">MVP</Tag></div>
       <div className="header-spacer" />
       <Input.Search className="global-search" placeholder="搜索风险编号、标题或资产" onSearch={value => navigate(`/findings?q=${encodeURIComponent(value)}`)} />
       <Button icon={colorMode === "dark" ? <SunOutlined /> : <MoonOutlined />} onClick={() => setColorMode(colorMode === "dark" ? "light" : "dark")}>{colorMode === "dark" ? "浅色" : "深色"}</Button>
