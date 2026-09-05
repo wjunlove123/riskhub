@@ -142,6 +142,10 @@ node tests/docs-smoke.mjs
 node tests/demo-smoke.mjs
 ```
 
+## 开源许可证
+
+RiskHub 采用 [MIT License](LICENSE) 开源。
+
 ## 项目结构
 
 ```text
