@@ -17,7 +17,7 @@ from openpyxl.comments import Comment
 from openpyxl.formatting.rule import FormulaRule
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.worksheet.datavalidation import DataValidation
-from sqlalchemy import func, or_, select
+from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
@@ -53,6 +53,7 @@ from .schemas import (
     EventPublic,
     FindingDetail,
     FindingSummary,
+    FindingUpdate,
     GovernanceSettingPublic,
     GovernanceSettingUpdate,
     LoginRequest,
@@ -72,7 +73,7 @@ from .schemas import (
 )
 from .security import AdminUser, CurrentUser, authenticate, create_access_token
 from .seed import seed_database
-from .services import allowed_actions, audit, finding_event, ingest_records, transition_finding
+from .services import SEVERITY_PRIORITY, SEVERITY_SCORE, allowed_actions, audit, finding_event, ingest_records, transition_finding
 
 
 DEFAULT_GOVERNANCE_SETTINGS = {
@@ -452,6 +453,50 @@ def list_findings(
 @app.get("/api/v1/findings/{finding_id}", response_model=FindingDetail)
 def get_finding(finding_id: str, user: CurrentUser, session: Annotated[Session, Depends(get_session)]):
     return finding_public(get_accessible_finding(session, user, finding_id), user, detail=True)
+
+
+@app.patch("/api/v1/findings/{finding_id}", response_model=FindingDetail)
+def update_finding(finding_id: str, payload: FindingUpdate, user: AdminUser, session: Annotated[Session, Depends(get_session)]):
+    finding = get_accessible_finding(session, user, finding_id)
+    ensure_version(finding, payload.version)
+    asset = session.get(Asset, payload.asset_id)
+    if not asset:
+        raise HTTPException(status_code=422, detail={"code": "ASSET_NOT_FOUND", "message": "关联资产不存在"})
+    before = {
+        "title": finding.title, "category": finding.category, "description": finding.description,
+        "recommendation": finding.recommendation, "severity": finding.severity.value, "asset_id": finding.asset_id,
+    }
+    finding.title = payload.title
+    finding.category = payload.category
+    finding.description = payload.description
+    finding.recommendation = payload.recommendation
+    finding.severity = payload.severity
+    finding.severity_overridden = True
+    finding.risk_score = SEVERITY_SCORE[payload.severity]
+    finding.priority = SEVERITY_PRIORITY[payload.severity]
+    if finding.asset_id != payload.asset_id:
+        finding.asset = asset
+        session.execute(update(Observation).where(Observation.finding_id == finding.id).values(asset_id=payload.asset_id))
+    finding.version += 1
+    after = {**payload.model_dump(mode="json"), "version": finding.version}
+    audit(session, user, "FINDING_UPDATED", "finding", finding.id, before, after)
+    finding_event(session, finding, "FINDING_UPDATED", user, payload={"reason": payload.reason})
+    session.commit()
+    return finding_public(get_accessible_finding(session, user, finding_id), user, detail=True)
+
+
+@app.delete("/api/v1/findings/{finding_id}", status_code=204)
+def delete_finding(finding_id: str, user: AdminUser, session: Annotated[Session, Depends(get_session)]):
+    finding = get_accessible_finding(session, user, finding_id)
+    before = {"finding_no": finding.finding_no, "title": finding.title, "status": finding.status.value}
+    session.execute(delete(Verification).where(Verification.finding_id == finding.id))
+    session.execute(delete(Remediation).where(Remediation.finding_id == finding.id))
+    session.execute(delete(RiskAcceptance).where(RiskAcceptance.finding_id == finding.id))
+    session.execute(delete(Observation).where(Observation.finding_id == finding.id))
+    session.execute(delete(FindingEvent).where(FindingEvent.finding_id == finding.id))
+    session.delete(finding)
+    audit(session, user, "FINDING_DELETED", "finding", finding.id, before, None)
+    session.commit()
 
 
 @app.get("/api/v1/findings/{finding_id}/observations", response_model=list[ObservationPublic])

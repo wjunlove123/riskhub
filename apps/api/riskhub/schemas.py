@@ -194,6 +194,17 @@ class FindingDetail(FindingSummary):
     reopen_count: int
 
 
+class FindingUpdate(BaseModel):
+    title: str = Field(min_length=1, max_length=500)
+    category: str = Field(min_length=1, max_length=120)
+    description: str = ""
+    recommendation: str = ""
+    severity: Severity
+    asset_id: str
+    version: int
+    reason: str = Field(min_length=2, max_length=500)
+
+
 class Page(BaseModel):
     items: list[Any]
     total: int

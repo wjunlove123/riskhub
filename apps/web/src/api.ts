@@ -27,6 +27,7 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     if (response.status === 401) clearToken();
     throw new APIError(response.status, message);
   }
+  if (response.status === 204) return undefined as T;
   return response.json();
 }
 

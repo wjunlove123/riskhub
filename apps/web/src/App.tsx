@@ -7,7 +7,7 @@ import {
 } from "antd";
 import {
   AlertOutlined, ApiOutlined, AppstoreOutlined, AuditOutlined, BarChartOutlined,
-  CheckSquareOutlined, CloudUploadOutlined, DashboardOutlined, DatabaseOutlined, DownloadOutlined, EditOutlined,
+  CheckSquareOutlined, CloudUploadOutlined, DashboardOutlined, DatabaseOutlined, DeleteOutlined, DownloadOutlined, EditOutlined,
   MenuFoldOutlined, MenuUnfoldOutlined, MoonOutlined, SafetyCertificateOutlined, SettingOutlined,
   SunOutlined, UserOutlined
 } from "@ant-design/icons";
@@ -117,7 +117,7 @@ function AppShell({ user, onUserChange, onLogout, colorMode, setColorMode }: { u
   return <Layout className="app-layout">
     <Header className="top-header">
       <Button type="text" icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />} onClick={() => setCollapsed(!collapsed)} />
-      <div className="brand"><BrandMark /><strong>RiskHub</strong><Tag color="blue">MVP</Tag></div>
+      <div className="brand"><BrandMark /><strong>RiskHub</strong></div>
       <div className="header-spacer" />
       <Input.Search className="global-search" placeholder="搜索风险编号、标题或资产" onSearch={value => navigate(`/findings?q=${encodeURIComponent(value)}`)} />
       <Button icon={colorMode === "dark" ? <SunOutlined /> : <MoonOutlined />} onClick={() => setColorMode(colorMode === "dark" ? "light" : "dark")}>{colorMode === "dark" ? "浅色" : "深色"}</Button>
@@ -132,8 +132,8 @@ function AppShell({ user, onUserChange, onLogout, colorMode, setColorMode }: { u
       </Sider>
       <Content className="main-content"><Routes>
         <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/my-work" element={<FindingsPage myWork />} />
-        <Route path="/findings" element={<FindingsPage />} />
+        <Route path="/my-work" element={<FindingsPage myWork admin={role === "platform_admin"} />} />
+        <Route path="/findings" element={<FindingsPage admin={role === "platform_admin"} />} />
         <Route path="/findings/:id" element={<FindingDetailPage />} />
         <Route path="/assets" element={<AssetsPage admin={role === "platform_admin"} />} />
         <Route path="/sources" element={<SourcesPage admin={role === "platform_admin"} />} />
@@ -202,14 +202,21 @@ function Dashboard() {
   </>;
 }
 
-function FindingsPage({ myWork = false }: { myWork?: boolean }) {
+function FindingsPage({ myWork = false, admin = false }: { myWork?: boolean; admin?: boolean }) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const location = useLocation();
   const initial = new URLSearchParams(location.search);
   const [q, setQ] = useState(initial.get("q") || "");
   const [severity, setSeverity] = useState<string | undefined>(initial.get("severity") || undefined);
   const [status, setStatus] = useState<string | undefined>(initial.get("status") || undefined);
+  const [editing, setEditing] = useState<Finding | null>(null);
+  const [form] = Form.useForm();
   const findings = useQuery({ queryKey: ["findings", q, severity, status, myWork], queryFn: () => findingQuery({ q, severity, status }) });
+  const assets = useQuery({ queryKey: ["assets"], queryFn: () => api<Asset[]>("/api/v1/assets"), enabled: admin });
+  const save = useMutation({ mutationFn: (values: any) => api<Finding>(`/api/v1/findings/${editing!.id}`, { method: "PATCH", body: JSON.stringify({ ...values, version: editing!.version }) }), onSuccess: async () => { message.success("风险信息已更新"); setEditing(null); form.resetFields(); await queryClient.invalidateQueries({ queryKey: ["findings"] }); }, onError: error => message.error(error instanceof Error ? error.message : "风险保存失败") });
+  const remove = (finding: Finding) => Modal.confirm({ title: "删除风险", content: `确定删除“${finding.title}”吗？相关发现记录和治理过程也会一并删除，且无法恢复。`, okText: "确认删除", okType: "danger", cancelText: "取消", onOk: async () => { try { await api<void>(`/api/v1/findings/${finding.id}`, { method: "DELETE" }); message.success("风险已删除"); await queryClient.invalidateQueries({ queryKey: ["findings"] }); } catch (error) { message.error(error instanceof Error ? error.message : "风险删除失败"); } } });
+  const edit = async (finding: Finding) => { const detail = await api<Finding>(`/api/v1/findings/${finding.id}`); setEditing(detail); form.setFieldsValue({ title: detail.title, category: detail.category || "general", description: detail.description, recommendation: detail.recommendation, severity: detail.severity, asset_id: detail.asset.id, reason: "修正导入数据" }); };
   return <><PageHeader title={myWork ? "我的待办" : "风险台账"} description={myWork ? "仅展示当前角色有权处理的风险" : "统一查看、分级和跟踪所有风险"} />
     <Card className="filter-card"><Space wrap><Input.Search allowClear placeholder="搜索编号或标题" value={q} onChange={e => setQ(e.target.value)} /><Select allowClear placeholder="全部等级" value={severity} onChange={setSeverity} options={(Object.keys(severityLabels) as Severity[]).map(value => ({ value, label: severityLabels[value] }))} /><Select allowClear placeholder="全部状态" value={status} onChange={setStatus} options={(Object.keys(statusLabels) as FindingStatus[]).map(value => ({ value, label: statusLabels[value] }))} /><Text type="secondary">共 {findings.data?.total || 0} 项</Text></Space></Card>
     <Card className="table-card"><Table rowKey="id" loading={findings.isLoading} dataSource={findings.data?.items || []} pagination={{ pageSize: 20, total: findings.data?.total }} onRow={record => ({ onClick: () => navigate(`/findings/${record.id}`) })} columns={[
@@ -217,8 +224,9 @@ function FindingsPage({ myWork = false }: { myWork?: boolean }) {
       { title: "等级", dataIndex: "severity", render: value => <SeverityTag value={value} /> },
       { title: "状态", dataIndex: "status", render: value => <StatusTag value={value} /> },
       { title: "资产", render: (_, row) => row.asset.name }, { title: "Owner", render: (_, row) => row.owner?.display_name || "未分配" },
-      { title: "最近发现", dataIndex: "last_seen_at", render: dateText }, { title: "SLA", dataIndex: "due_at", render: value => <Text type={value && dayjs(value).isBefore(dayjs()) ? "danger" : "secondary"}>{dateText(value)}</Text> }
-    ]} /></Card></>;
+      { title: "最近发现", dataIndex: "last_seen_at", render: dateText }, { title: "SLA", dataIndex: "due_at", render: value => <Text type={value && dayjs(value).isBefore(dayjs()) ? "danger" : "secondary"}>{dateText(value)}</Text> },
+      { title: "操作", width: 150, render: (_, row) => <Space onClick={event => event.stopPropagation()}><Button type="link" size="small" icon={<EditOutlined />} disabled={!admin} onClick={() => edit(row)}>编辑</Button><Button type="link" size="small" danger icon={<DeleteOutlined />} disabled={!admin} onClick={() => remove(row)}>删除</Button></Space> }
+    ]} /></Card><Modal open={Boolean(editing)} title={`编辑风险 · ${editing?.finding_no || ""}`} onCancel={() => { setEditing(null); form.resetFields(); }} onOk={() => form.validateFields().then(values => save.mutate(values))} confirmLoading={save.isPending} okText="保存修改" width={680} destroyOnHidden><Alert className="settings-modal-tip" type="warning" showIcon message="修改统一风险信息不会改写原始导入记录；所有调整都会写入审计日志。" /><Form form={form} layout="vertical"><Form.Item name="title" label="风险标题" rules={[{ required: true }]}><Input /></Form.Item><div className="settings-field-grid"><Form.Item name="severity" label="严重等级" rules={[{ required: true }]}><Select options={(Object.keys(severityLabels) as Severity[]).map(value => ({ value, label: severityLabels[value] }))} /></Form.Item><Form.Item name="category" label="风险分类" rules={[{ required: true }]}><Input /></Form.Item><Form.Item name="asset_id" label="关联资产" rules={[{ required: true }]}><Select showSearch optionFilterProp="label" options={(assets.data || []).map(asset => ({ value: asset.id, label: `${asset.asset_code} · ${asset.name}` }))} /></Form.Item><Form.Item name="reason" label="修改原因" rules={[{ required: true, min: 2 }]}><Input /></Form.Item></div><Form.Item name="description" label="风险说明"><Input.TextArea rows={3} /></Form.Item><Form.Item name="recommendation" label="整改建议"><Input.TextArea rows={3} /></Form.Item></Form></Modal></>;
 }
 
 function FindingDetailPage() {

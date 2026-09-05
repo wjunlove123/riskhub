@@ -37,6 +37,43 @@ def test_role_scoped_access_and_admin_only_endpoint(client, admin_headers, remed
     assert response.status_code == 403
 
 
+def test_admin_can_edit_and_delete_finding(client, admin_headers, remediator_headers):
+    source = client.get("/api/v1/sources", headers=admin_headers).json()[0]
+    created_batch = client.post(
+        "/api/v1/import-batches/api",
+        headers={**admin_headers, "Idempotency-Key": "edit-delete-finding-test"},
+        json={"source_id": source["id"], "records": [{
+            "source_finding_id": "EDIT-DELETE-001", "source_rule_id": "EDIT-DELETE",
+            "title": "待修正的风险标题", "description": "原始描述", "recommendation": "原始建议",
+            "severity": "medium", "asset_code": "OPS-PLATFORM", "location": "/edit-delete-test",
+        }]},
+    )
+    assert created_batch.status_code == 201, created_batch.text
+    finding = client.get("/api/v1/findings?q=待修正的风险标题", headers=admin_headers).json()["items"][0]
+    assets = client.get("/api/v1/assets", headers=admin_headers).json()
+    new_asset = next(item for item in assets if item["id"] != finding["asset"]["id"])
+    payload = {
+        "title": "修正后的风险标题", "category": "configuration", "description": "修正后的描述",
+        "recommendation": "修正后的整改建议", "severity": "high", "asset_id": new_asset["id"],
+        "version": finding["version"], "reason": "修正错误导入信息",
+    }
+    assert client.patch(f"/api/v1/findings/{finding['id']}", headers=remediator_headers, json=payload).status_code == 403
+    updated = client.patch(f"/api/v1/findings/{finding['id']}", headers=admin_headers, json=payload)
+    assert updated.status_code == 200, updated.text
+    assert updated.json()["title"] == "修正后的风险标题"
+    assert updated.json()["severity"] == "high"
+    assert updated.json()["risk_score"] == 8.0
+    assert updated.json()["priority"] == "P1"
+    assert updated.json()["asset"]["id"] == new_asset["id"]
+
+    assert client.delete(f"/api/v1/findings/{finding['id']}", headers=remediator_headers).status_code == 403
+    deleted = client.delete(f"/api/v1/findings/{finding['id']}", headers=admin_headers)
+    assert deleted.status_code == 204
+    assert client.get(f"/api/v1/findings/{finding['id']}", headers=admin_headers).status_code == 404
+    actions = {item["action"] for item in client.get("/api/v1/audit-events", headers=admin_headers).json()}
+    assert {"FINDING_UPDATED", "FINDING_DELETED"}.issubset(actions)
+
+
 def test_admin_can_edit_assets_and_source_configuration(client, admin_headers, remediator_headers):
     asset = client.get("/api/v1/assets", headers=admin_headers).json()[0]
     updated_asset = client.patch(
