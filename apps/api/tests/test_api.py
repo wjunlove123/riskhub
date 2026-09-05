@@ -37,6 +37,46 @@ def test_role_scoped_access_and_admin_only_endpoint(client, admin_headers, remed
     assert response.status_code == 403
 
 
+def test_admin_can_edit_assets_and_source_configuration(client, admin_headers, remediator_headers):
+    asset = client.get("/api/v1/assets", headers=admin_headers).json()[0]
+    updated_asset = client.patch(
+        f"/api/v1/assets/{asset['id']}",
+        headers=admin_headers,
+        json={
+            "name": f"{asset['name']}（已编辑）",
+            "type": asset["type"],
+            "external_id": asset["external_id"],
+            "business_system": asset["business_system"],
+            "team": "平台治理组",
+            "owner_id": asset["owner"]["id"],
+            "importance": asset["importance"],
+            "exposure": asset["exposure"],
+            "environment": "production",
+            "status": "active",
+        },
+    )
+    assert updated_asset.status_code == 200, updated_asset.text
+    assert updated_asset.json()["team"] == "平台治理组"
+    assert client.patch(f"/api/v1/assets/{asset['id']}", headers=remediator_headers, json={}).status_code == 403
+
+    source = client.get("/api/v1/sources", headers=admin_headers).json()[0]
+    updated_source = client.patch(
+        f"/api/v1/sources/{source['id']}",
+        headers=admin_headers,
+        json={
+            "name": source["name"],
+            "ingestion_type": source["ingestion_type"],
+            "adapter_type": "custom-mapping",
+            "enabled": True,
+            "mapping_config": {"title": "issue_name", "severity": "risk_level", "asset": "asset_code", "location": "target"},
+        },
+    )
+    assert updated_source.status_code == 200, updated_source.text
+    assert updated_source.json()["mapping_config"]["severity"] == "risk_level"
+    audit_events = client.get("/api/v1/audit-events", headers=admin_headers).json()
+    assert {"ASSET_UPDATED", "SOURCE_UPDATED"}.issubset({item["action"] for item in audit_events})
+
+
 def test_api_import_idempotency_and_deduplication(client, admin_headers):
     source = client.get("/api/v1/sources", headers=admin_headers).json()[0]
     payload = {
@@ -59,6 +99,31 @@ def test_api_import_idempotency_and_deduplication(client, admin_headers):
     findings = client.get("/api/v1/findings?q=幂等与去重测试风险", headers=admin_headers).json()
     assert findings["total"] == 1
     assert findings["items"][0]["observation_count"] == 1
+
+
+def test_custom_manual_risk_entry_creates_import_batch(client, admin_headers):
+    source = client.get("/api/v1/sources", headers=admin_headers).json()[0]
+    response = client.post(
+        "/api/v1/import-batches/api",
+        headers={**admin_headers, "Idempotency-Key": "manual-entry-test"},
+        json={
+            "source_id": source["id"],
+            "records": [{
+                "source_finding_id": "MANUAL-001",
+                "title": "手工录入的风险",
+                "description": "通过自定义录入表单提交",
+                "recommendation": "完成验证后关闭",
+                "severity": "medium",
+                "asset_code": "USER-API",
+                "location": "/api/manual",
+            }],
+        },
+    )
+    assert response.status_code == 201, response.text
+    assert response.json()["filename"] == "API 请求"
+    assert response.json()["success_count"] == 1
+    finding = client.get("/api/v1/findings?q=手工录入的风险", headers=admin_headers).json()
+    assert finding["total"] == 1
 
 
 def test_excel_import(client, admin_headers):

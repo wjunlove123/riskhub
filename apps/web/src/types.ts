@@ -14,10 +14,13 @@ export interface Asset {
   asset_code: string;
   name: string;
   type: string;
+  external_id?: string;
+  business_system?: string;
   team: string;
   importance: string;
   exposure: string;
   status: string;
+  environment?: string;
   owner?: User;
 }
 
@@ -46,7 +49,7 @@ export interface Finding {
 }
 
 export interface FindingPage { items: Finding[]; total: number; page: number; page_size: number; }
-export interface Source { id: string; source_code: string; name: string; ingestion_type: string; adapter_type: string; enabled: boolean; }
+export interface Source { id: string; source_code: string; name: string; ingestion_type: string; adapter_type: string; enabled: boolean; mapping_config: Record<string, string>; }
 export interface GovernanceSetting { key: string; title: string; config: Record<string, string | number | boolean>; version: number; updated_at: string; }
 export interface Batch { id: string; batch_no: string; source_id: string; filename?: string; status: string; total_count: number; success_count: number; failed_count: number; skipped_count: number; created_at: string; }
 export interface Observation { id: string; source_finding_id?: string; source_rule_id?: string; source_severity: string; title: string; normalized_location: string; observed_at: string; match_method: string; source: Source; }

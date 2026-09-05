@@ -46,6 +46,7 @@ from .schemas import (
     APIImportRequest,
     AssetCreate,
     AssetPublic,
+    AssetUpdate,
     AssignmentUpdate,
     AuditPublic,
     BatchPublic,
@@ -63,6 +64,7 @@ from .schemas import (
     SeverityUpdate,
     SourceCreate,
     SourcePublic,
+    SourceUpdate,
     TokenResponse,
     TransitionRequest,
     UserPublic,
@@ -201,6 +203,21 @@ def create_asset(payload: AssetCreate, user: AdminUser, session: Annotated[Sessi
     return session.scalar(select(Asset).options(selectinload(Asset.owner)).where(Asset.id == asset.id))
 
 
+@app.patch("/api/v1/assets/{asset_id}", response_model=AssetPublic)
+def update_asset(asset_id: str, payload: AssetUpdate, user: AdminUser, session: Annotated[Session, Depends(get_session)]):
+    asset = session.get(Asset, asset_id)
+    if not asset:
+        raise HTTPException(status_code=404, detail={"code": "ASSET_NOT_FOUND", "message": "资产不存在"})
+    if payload.owner_id and not session.get(User, payload.owner_id):
+        raise HTTPException(status_code=422, detail={"code": "OWNER_NOT_FOUND", "message": "资产 Owner 不存在"})
+    before = {field: getattr(asset, field) for field in type(payload).model_fields}
+    for field, value in payload.model_dump().items():
+        setattr(asset, field, value)
+    audit(session, user, "ASSET_UPDATED", "asset", asset.id, before, payload.model_dump(mode="json"))
+    session.commit()
+    return session.scalar(select(Asset).options(selectinload(Asset.owner)).where(Asset.id == asset.id))
+
+
 @app.get("/api/v1/sources", response_model=list[SourcePublic])
 def list_sources(_: CurrentUser, session: Annotated[Session, Depends(get_session)]):
     return session.scalars(select(Source).order_by(Source.name)).all()
@@ -217,6 +234,20 @@ def create_source(payload: SourceCreate, user: AdminUser, session: Annotated[Ses
         raise HTTPException(status_code=409, detail={"code": "SOURCE_EXISTS", "message": "来源编码已存在"}) from exc
     audit(session, user, "SOURCE_CREATED", "source", source.id, after={"source_code": source.source_code, "name": source.name})
     session.commit()
+    return source
+
+
+@app.patch("/api/v1/sources/{source_id}", response_model=SourcePublic)
+def update_source(source_id: str, payload: SourceUpdate, user: AdminUser, session: Annotated[Session, Depends(get_session)]):
+    source = session.get(Source, source_id)
+    if not source:
+        raise HTTPException(status_code=404, detail={"code": "SOURCE_NOT_FOUND", "message": "来源不存在"})
+    before = {field: getattr(source, field) for field in type(payload).model_fields}
+    for field, value in payload.model_dump().items():
+        setattr(source, field, value)
+    audit(session, user, "SOURCE_UPDATED", "source", source.id, before, payload.model_dump(mode="json"))
+    session.commit()
+    session.refresh(source)
     return source
 
 

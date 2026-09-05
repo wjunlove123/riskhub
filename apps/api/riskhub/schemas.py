@@ -54,6 +54,19 @@ class AssetCreate(BaseModel):
     environment: str = "production"
 
 
+class AssetUpdate(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    type: str
+    external_id: str | None = None
+    business_system: str | None = None
+    team: str
+    owner_id: str | None = None
+    importance: Literal["core", "important", "normal"] = "important"
+    exposure: Literal["internet", "internal"] = "internal"
+    environment: Literal["production", "staging", "test", "development"] = "production"
+    status: Literal["active", "inactive"] = "active"
+
+
 class SourcePublic(ORMModel):
     id: str
     source_code: str
@@ -69,6 +82,14 @@ class SourceCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     ingestion_type: Literal["api", "excel"] = "api"
     adapter_type: str = "generic"
+    mapping_config: dict[str, Any] = Field(default_factory=dict)
+
+
+class SourceUpdate(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    ingestion_type: Literal["api", "excel"]
+    adapter_type: str = Field(min_length=1, max_length=50)
+    enabled: bool = True
     mapping_config: dict[str, Any] = Field(default_factory=dict)
 
 

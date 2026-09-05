@@ -130,6 +130,7 @@ body { color: var(--ink); background: var(--canvas); font-family: -apple-system,
 .settings-modal-tip { margin-bottom: 18px; }
 .settings-field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 14px; }
 .settings-switch-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 14px; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 10px; padding-top: 4px; }
 .ant-card, .ant-modal-content, .ant-table, .ant-layout, .ant-menu { transition: background-color .18s ease, border-color .18s ease, color .18s ease; }
 
 @media (max-width: 1180px) {
