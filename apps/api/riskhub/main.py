@@ -11,7 +11,12 @@ from typing import Annotated
 
 from fastapi import Depends, FastAPI, File, Header, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from openpyxl import load_workbook
+from fastapi.responses import StreamingResponse
+from openpyxl import Workbook, load_workbook
+from openpyxl.comments import Comment
+from openpyxl.formatting.rule import FormulaRule
+from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.worksheet.datavalidation import DataValidation
 from sqlalchemy import func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
@@ -25,6 +30,7 @@ from .models import (
     Finding,
     FindingEvent,
     FindingStatus,
+    GovernanceSetting,
     ImportBatch,
     Observation,
     Remediation,
@@ -46,6 +52,8 @@ from .schemas import (
     EventPublic,
     FindingDetail,
     FindingSummary,
+    GovernanceSettingPublic,
+    GovernanceSettingUpdate,
     LoginRequest,
     ObservationInput,
     ObservationPublic,
@@ -63,6 +71,16 @@ from .schemas import (
 from .security import AdminUser, CurrentUser, authenticate, create_access_token
 from .seed import seed_database
 from .services import allowed_actions, audit, finding_event, ingest_records, transition_finding
+
+
+DEFAULT_GOVERNANCE_SETTINGS = {
+    "severity_mapping": ("等级映射", {"critical": "严重", "high": "高危", "medium": "中危", "low": "低危", "info": "提示"}),
+    "deduplication": ("去重规则", {"stable_id_enabled": True, "field_hash_enabled": True, "scope": "source_asset"}),
+    "sla": ("SLA 策略", {"critical_days": 3, "high_days": 7, "medium_days": 30, "low_days": 60, "info_days": 90, "remind_before_days": 3}),
+    "auto_assignment": ("自动分派", {"enabled": True, "strategy": "asset_owner", "fallback_to_admin": True}),
+    "notifications": ("通知规则", {"assignment": True, "approaching_sla": True, "overdue": True, "verification_rejected": True, "channel": "in_app"}),
+    "risk_acceptance": ("风险接受", {"max_days": 90, "require_compensating_control": True, "restore_on_expiry": True, "approver_role": "platform_admin"}),
+}
 
 
 @asynccontextmanager
@@ -202,9 +220,107 @@ def create_source(payload: SourceCreate, user: AdminUser, session: Annotated[Ses
     return source
 
 
+def ensure_governance_settings(session: Session) -> list[GovernanceSetting]:
+    existing = {item.key: item for item in session.scalars(select(GovernanceSetting)).all()}
+    for key, (title, config) in DEFAULT_GOVERNANCE_SETTINGS.items():
+        if key not in existing:
+            setting = GovernanceSetting(key=key, title=title, config=config)
+            session.add(setting)
+            existing[key] = setting
+    session.commit()
+    return [existing[key] for key in DEFAULT_GOVERNANCE_SETTINGS]
+
+
+@app.get("/api/v1/governance-settings", response_model=list[GovernanceSettingPublic])
+def list_governance_settings(_: AdminUser, session: Annotated[Session, Depends(get_session)]):
+    return ensure_governance_settings(session)
+
+
+@app.patch("/api/v1/governance-settings/{setting_key}", response_model=GovernanceSettingPublic)
+def update_governance_setting(setting_key: str, payload: GovernanceSettingUpdate, user: AdminUser, session: Annotated[Session, Depends(get_session)]):
+    ensure_governance_settings(session)
+    setting = session.scalar(select(GovernanceSetting).where(GovernanceSetting.key == setting_key))
+    if not setting:
+        raise HTTPException(status_code=404, detail={"code": "SETTING_NOT_FOUND", "message": "治理配置不存在"})
+    if setting.version != payload.version:
+        raise HTTPException(status_code=409, detail={"code": "VERSION_CONFLICT", "message": "配置已被更新，请刷新后重试"})
+    before = dict(setting.config)
+    setting.config = payload.config
+    setting.version += 1
+    audit(session, user, "GOVERNANCE_SETTING_UPDATED", "governance_setting", setting.key, before, setting.config)
+    session.commit()
+    session.refresh(setting)
+    return setting
+
+
 @app.get("/api/v1/import-batches", response_model=list[BatchPublic])
 def list_batches(_: AdminUser, session: Annotated[Session, Depends(get_session)]):
     return session.scalars(select(ImportBatch).order_by(ImportBatch.created_at.desc()).limit(100)).all()
+
+
+@app.get("/api/v1/import-batches/template")
+def download_import_template(_: AdminUser):
+    headers = ["source_finding_id", "source_rule_id", "title", "description", "recommendation", "severity", "asset_code", "asset_external_id", "asset_name", "asset_type", "team", "location", "observed_at"]
+    descriptions = {
+        "source_finding_id": "来源系统中的风险唯一 ID，推荐填写，用于稳定去重",
+        "source_rule_id": "来源规则或检查项 ID",
+        "title": "风险标题，必填",
+        "description": "风险描述",
+        "recommendation": "整改建议",
+        "severity": "风险等级，必填：critical / high / medium / low / info",
+        "asset_code": "平台资产编码；与 asset_external_id 至少填写一个",
+        "asset_external_id": "来源系统中的资产 ID",
+        "asset_name": "资产名称，新资产自动创建时使用",
+        "asset_type": "资产类型，如 application、api、database、cloud",
+        "team": "所属团队",
+        "location": "发现位置，如 URL、文件路径、云资源路径",
+        "observed_at": "发现时间，ISO 8601 格式，例如 2026-09-05T10:30:00+08:00",
+    }
+    example = ["SCAN-2026-001", "WEAK_PASSWORD", "公网管理后台存在弱口令策略", "公网入口允许弱口令，可能导致未授权访问。", "关闭公网入口并启用 MFA。", "critical", "OPS-PLATFORM", "", "统一运维平台", "application", "基础架构组", "https://ops.example.com/admin", "2026-09-05T10:30:00+08:00"]
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "风险导入"
+    sheet.append(headers)
+    sheet.append(example)
+    sheet.freeze_panes = "A2"
+    sheet.auto_filter.ref = f"A1:M2"
+    header_fill = PatternFill("solid", fgColor="2478D4")
+    required_fill = PatternFill("solid", fgColor="FFF2CC")
+    for index, header in enumerate(headers, 1):
+        cell = sheet.cell(1, index)
+        cell.font = Font(color="FFFFFF", bold=True)
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="center")
+        cell.comment = Comment(descriptions[header], "RiskHub")
+        sheet.column_dimensions[cell.column_letter].width = max(18, min(42, len(descriptions[header]) * 1.4))
+        if header in {"title", "severity"}:
+            sheet.cell(2, index).fill = required_fill
+    severity_validation = DataValidation(type="list", formula1='"critical,high,medium,low,info"', allow_blank=False)
+    severity_validation.error = "请选择 critical、high、medium、low 或 info"
+    severity_validation.errorTitle = "无效风险等级"
+    sheet.add_data_validation(severity_validation)
+    severity_validation.add("F2:F10001")
+    required_rule = FormulaRule(formula=['OR($C2="",$F2="")'], fill=PatternFill("solid", fgColor="FCE8E6"))
+    sheet.conditional_formatting.add("A2:M10001", required_rule)
+    guide = workbook.create_sheet("填写说明")
+    guide.append(["字段", "是否必填", "填写说明"])
+    for header in headers:
+        guide.append([header, "是" if header in {"title", "severity"} else "否", descriptions[header]])
+    guide.freeze_panes = "A2"
+    guide.column_dimensions["A"].width = 24
+    guide.column_dimensions["B"].width = 12
+    guide.column_dimensions["C"].width = 72
+    for cell in guide[1]:
+        cell.font = Font(color="FFFFFF", bold=True)
+        cell.fill = header_fill
+    output = io.BytesIO()
+    workbook.save(output)
+    output.seek(0)
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="riskhub-finding-import-template.xlsx"'},
+    )
 
 
 @app.post("/api/v1/import-batches/api", response_model=BatchPublic, status_code=201)

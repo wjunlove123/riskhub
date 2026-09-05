@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { MemoryRouter } from "react-router-dom";
-import { App } from "./App";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
+import { App, SeverityPie } from "./App";
+
+function LocationProbe() {
+  return <span data-testid="location">{useLocation().pathname}{useLocation().search}</span>;
+}
 
 describe("RiskHub application", () => {
   it("shows the three supported demo roles when signed out", () => {
@@ -15,5 +19,11 @@ describe("RiskHub application", () => {
     expect(screen.getByRole("button", { name: /以平台管理员身份进入/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /以整改人员身份进入/ })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /以验证人员身份进入/ })).toBeInTheDocument();
+  });
+
+  it("navigates from a pie segment to the matching severity list", () => {
+    render(<MemoryRouter initialEntries={["/dashboard"]}><SeverityPie values={{ critical: 2, high: 3, medium: 1, low: 0, info: 0 }} /><Routes><Route path="*" element={<LocationProbe />} /></Routes></MemoryRouter>);
+    fireEvent.click(screen.getByRole("link", { name: /严重 2 项/ }));
+    expect(screen.getByTestId("location")).toHaveTextContent("/findings?severity=critical");
   });
 });

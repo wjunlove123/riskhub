@@ -79,6 +79,21 @@ body { color: var(--ink); background: var(--canvas); font-family: -apple-system,
 .muted-line { margin-top: 2px; color: var(--muted); font-size: 12px; }
 .severity-bars { display: grid; gap: 13px; }
 .bar-label { display: flex; justify-content: space-between; gap: 12px; }
+.severity-pie-layout { min-height: 286px; display: grid; grid-template-columns: minmax(180px, 1fr) minmax(145px, .75fr); align-items: center; gap: 18px; }
+.severity-pie-wrap { position: relative; width: min(100%, 280px); aspect-ratio: 1; justify-self: center; }
+.severity-pie { width: 100%; height: 100%; overflow: visible; transform: rotate(-90deg); }
+.severity-pie__track, .severity-pie__segment { fill: none; stroke-width: 38; }
+.severity-pie__track { stroke: color-mix(in srgb, var(--line) 72%, transparent); }
+.severity-pie__segment { cursor: pointer; transition: stroke-width .16s ease, filter .16s ease; }
+.severity-pie__segment:hover, .severity-pie__segment:focus-visible { stroke-width: 43; filter: drop-shadow(0 3px 5px rgba(20,40,70,.2)); outline: none; }
+.severity-pie__total { position: absolute; inset: 50% auto auto 50%; display: grid; text-align: center; transform: translate(-50%, -50%); pointer-events: none; }
+.severity-pie__total strong { color: var(--ink); font-size: 32px; line-height: 1; }
+.severity-pie__total span { margin-top: 7px; color: var(--muted); font-size: 11px; }
+.severity-legend { display: grid; gap: 7px; }
+.severity-legend button { width: 100%; min-height: 38px; padding: 7px 9px; display: grid; grid-template-columns: 10px 1fr auto; align-items: center; gap: 9px; color: var(--ink); background: transparent; border: 1px solid transparent; border-radius: 7px; text-align: left; cursor: pointer; }
+.severity-legend button:hover, .severity-legend button:focus-visible { background: color-mix(in srgb, var(--brand) 7%, var(--panel)); border-color: var(--line); outline: none; }
+.severity-legend i { width: 10px; height: 10px; border-radius: 3px; }
+.severity-legend strong { font-variant-numeric: tabular-nums; }
 .filter-card { margin-bottom: 0; border-radius: 8px 8px 0 0; }
 .filter-card + .table-card { border-top: 0; border-radius: 0 0 8px 8px; }
 .table-card .ant-table-row { cursor: pointer; }
@@ -106,6 +121,15 @@ body { color: var(--ink); background: var(--canvas); font-family: -apple-system,
 .fake-chart > div { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 8px; }
 .fake-chart span { width: min(48px, 70%); min-height: 5px; background: var(--brand); border-radius: 5px 5px 0 0; }
 .upload-icon { color: var(--brand); font-size: 34px; }
+.template-callout { padding: 14px; display: flex; align-items: center; justify-content: space-between; gap: 16px; background: color-mix(in srgb, var(--brand) 7%, var(--panel)); border: 1px solid color-mix(in srgb, var(--brand) 24%, var(--line)); border-radius: 8px; }
+.template-callout > div { display: grid; gap: 3px; }
+.template-callout .ant-typography { font-size: 12px; }
+.setting-card-heading, .setting-card-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.setting-card-footer { min-height: 34px; margin-top: 18px; padding-top: 12px; border-top: 1px solid var(--line); }
+.setting-card-footer .ant-typography { font-size: 12px; }
+.settings-modal-tip { margin-bottom: 18px; }
+.settings-field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 14px; }
+.settings-switch-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 14px; }
 .ant-card, .ant-modal-content, .ant-table, .ant-layout, .ant-menu { transition: background-color .18s ease, border-color .18s ease, color .18s ease; }
 
 @media (max-width: 1180px) {
@@ -123,4 +147,8 @@ body { color: var(--ink); background: var(--canvas); font-family: -apple-system,
   .metric-grid, .source-grid { grid-template-columns: 1fr; }
   .page-header { flex-direction: column; }
   .steps-bar { overflow-x: auto; grid-template-columns: repeat(5, 110px); padding-bottom: 8px; }
+  .severity-pie-layout { grid-template-columns: 1fr; }
+  .severity-pie-wrap { max-width: 230px; }
+  .template-callout { align-items: stretch; flex-direction: column; }
+  .settings-field-grid, .settings-switch-list { grid-template-columns: 1fr; }
 }

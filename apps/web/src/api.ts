@@ -30,6 +30,13 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   return response.json();
 }
 
+export async function downloadFile(path: string): Promise<Blob> {
+  const token = getToken();
+  const response = await fetch(`${API_URL}${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  if (!response.ok) throw new APIError(response.status, "模板下载失败");
+  return response.blob();
+}
+
 export async function login(username: string, password: string) {
   const result = await api<{ access_token: string }>("/api/v1/auth/login", { method: "POST", body: JSON.stringify({ username, password }) });
   localStorage.setItem(TOKEN_KEY, result.access_token);
@@ -59,4 +66,3 @@ export function findingQuery(params: { q?: string; severity?: string; status?: s
   if (params.status) query.set("status", params.status);
   return api<FindingPage>(`/api/v1/findings?${query}`);
 }
-

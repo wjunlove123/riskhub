@@ -1,20 +1,20 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Alert, App as AntApp, Button, Card, ConfigProvider, Descriptions, Form, Input, Layout, Menu, Modal,
-  Progress, Segmented, Select, Space, Spin, Statistic, Table, Tabs, Tag, Timeline, Typography, Upload,
+  Alert, App as AntApp, Button, Card, ConfigProvider, Descriptions, Form, Input, InputNumber, Layout, Menu, Modal,
+  Progress, Select, Space, Spin, Statistic, Switch, Table, Tabs, Tag, Timeline, Typography, Upload,
   message, theme as antdTheme
 } from "antd";
 import {
-  AlertOutlined, ApiOutlined, AppstoreOutlined, AuditOutlined, BarChartOutlined, BulbOutlined,
-  CheckSquareOutlined, CloudUploadOutlined, DashboardOutlined, DatabaseOutlined, FileTextOutlined,
+  AlertOutlined, ApiOutlined, AppstoreOutlined, AuditOutlined, BarChartOutlined,
+  CheckSquareOutlined, CloudUploadOutlined, DashboardOutlined, DatabaseOutlined, DownloadOutlined, EditOutlined,
   MenuFoldOutlined, MenuUnfoldOutlined, MoonOutlined, SafetyCertificateOutlined, SettingOutlined,
   SunOutlined, UserOutlined
 } from "@ant-design/icons";
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import dayjs from "dayjs";
-import { api, clearToken, demoAccounts, findingQuery, getToken, login, switchRole, transitionFinding } from "./api";
-import type { Asset, AuditEvent, Batch, Finding, FindingEvent, FindingStatus, Observation, Role, Severity, Source, User } from "./types";
+import { api, clearToken, demoAccounts, downloadFile, findingQuery, getToken, login, switchRole, transitionFinding } from "./api";
+import type { Asset, AuditEvent, Batch, Finding, FindingEvent, FindingStatus, GovernanceSetting, Observation, Role, Severity, Source, User } from "./types";
 
 const { Header, Sider, Content } = Layout;
 const { Title, Text, Paragraph } = Typography;
@@ -155,6 +155,35 @@ function SeverityTag({ value }: { value: Severity }) { return <Tag color={severi
 function StatusTag({ value }: { value: FindingStatus }) { return <Tag color={value === "closed" ? "green" : value === "pending_verification" ? "gold" : value === "risk_accepted" ? "cyan" : "blue"}>{statusLabels[value]}</Tag>; }
 function dateText(value?: string) { return value ? dayjs(value).format("YYYY-MM-DD HH:mm") : "—"; }
 
+export function SeverityPie({ values }: { values: Record<Severity, number> }) {
+  const navigate = useNavigate();
+  const order: Severity[] = ["critical", "high", "medium", "low", "info"];
+  const total = order.reduce((sum, key) => sum + (values[key] || 0), 0);
+  let offset = 0;
+  const segments = order.map(key => {
+    const value = values[key] || 0;
+    const percent = total ? value / total * 100 : 0;
+    const segment = { key, value, percent, offset };
+    offset += percent;
+    return segment;
+  });
+  return <div className="severity-pie-layout">
+    <div className="severity-pie-wrap">
+      <svg className="severity-pie" viewBox="0 0 180 180" role="img" aria-label="有效风险严重等级分布饼图">
+        <circle className="severity-pie__track" cx="90" cy="90" r="58" pathLength="100" />
+        {segments.filter(segment => segment.value > 0).map(segment => <a
+          key={segment.key}
+          href={`/findings?severity=${segment.key}`}
+          aria-label={`${severityLabels[segment.key]} ${segment.value} 项，点击查看列表`}
+          onClick={event => { event.preventDefault(); navigate(`/findings?severity=${segment.key}`); }}
+        ><circle className="severity-pie__segment" cx="90" cy="90" r="58" pathLength="100" stroke={`var(--severity-${segment.key})`} strokeDasharray={`${segment.percent} ${100 - segment.percent}`} strokeDashoffset={-segment.offset}><title>{severityLabels[segment.key]}：{segment.value} 项（{Math.round(segment.percent)}%）</title></circle></a>)}
+      </svg>
+      <div className="severity-pie__total"><strong>{total}</strong><span>有效风险</span></div>
+    </div>
+    <div className="severity-legend">{segments.map(segment => <button key={segment.key} type="button" onClick={() => navigate(`/findings?severity=${segment.key}`)}><i style={{ background: `var(--severity-${segment.key})` }} /><span>{severityLabels[segment.key]}</span><strong>{segment.value}</strong></button>)}</div>
+  </div>;
+}
+
 function Dashboard() {
   const summary = useQuery({ queryKey: ["dashboard-summary"], queryFn: () => api<any>("/api/v1/dashboard/summary") });
   const priorities = useQuery({ queryKey: ["dashboard-priorities"], queryFn: () => api<Finding[]>("/api/v1/dashboard/priorities") });
@@ -169,7 +198,7 @@ function Dashboard() {
     <div className="metric-grid">{metrics.map(([title, value, color]) => <Card key={String(title)} title={title as string} extra="↻"><Statistic value={value as number} valueStyle={{ color: `var(--metric-${color})` }} suffix={<span className="stat-suffix">FINDINGS</span>} /></Card>)}</div>
     <div className="dashboard-grid"><Card title="优先处理" extra={<Button type="link" onClick={() => navigate("/findings")}>查看全部 →</Button>}><Table rowKey="id" pagination={false} showHeader={false} loading={priorities.isLoading} dataSource={priorities.data || []} onRow={record => ({ onClick: () => navigate(`/findings/${record.id}`) })} columns={[
       { render: (_, row) => <SeverityTag value={row.severity} /> }, { render: (_, row) => <div><strong>{row.title}</strong><div className="muted-line">{row.finding_no} · {row.asset.name} · {statusLabels[row.status]}</div></div> }, { align: "right", render: (_, row) => <Text type={row.due_at && dayjs(row.due_at).isBefore(dayjs()) ? "danger" : "secondary"}>{dateText(row.due_at)}</Text> }
-    ]} /></Card><Card title="风险等级分布"><div className="severity-bars">{(Object.keys(severityLabels) as Severity[]).map(key => <div key={key}><div className="bar-label"><span>{severityLabels[key]}</span><strong>{data.by_severity[key] || 0}</strong></div><Progress percent={data.active ? Math.round((data.by_severity[key] || 0) / data.active * 100) : 0} showInfo={false} strokeColor={`var(--severity-${key})`} /></div>)}</div></Card></div>
+    ]} /></Card><Card title="风险等级饼图" extra={<Text type="secondary">点击扇区筛选</Text>}><SeverityPie values={data.by_severity} /></Card></div>
   </>;
 }
 
@@ -178,8 +207,8 @@ function FindingsPage({ myWork = false }: { myWork?: boolean }) {
   const location = useLocation();
   const initial = new URLSearchParams(location.search);
   const [q, setQ] = useState(initial.get("q") || "");
-  const [severity, setSeverity] = useState<string | undefined>();
-  const [status, setStatus] = useState<string | undefined>();
+  const [severity, setSeverity] = useState<string | undefined>(initial.get("severity") || undefined);
+  const [status, setStatus] = useState<string | undefined>(initial.get("status") || undefined);
   const findings = useQuery({ queryKey: ["findings", q, severity, status, myWork], queryFn: () => findingQuery({ q, severity, status }) });
   return <><PageHeader title={myWork ? "我的待办" : "风险台账"} description={myWork ? "仅展示当前角色有权处理的风险" : "统一查看、分级和跟踪所有风险"} />
     <Card className="filter-card"><Space wrap><Input.Search allowClear placeholder="搜索编号或标题" value={q} onChange={e => setQ(e.target.value)} /><Select allowClear placeholder="全部等级" value={severity} onChange={setSeverity} options={(Object.keys(severityLabels) as Severity[]).map(value => ({ value, label: severityLabels[value] }))} /><Select allowClear placeholder="全部状态" value={status} onChange={setStatus} options={(Object.keys(statusLabels) as FindingStatus[]).map(value => ({ value, label: statusLabels[value] }))} /><Text type="secondary">共 {findings.data?.total || 0} 项</Text></Space></Card>
@@ -296,8 +325,20 @@ function BatchesPage({ admin }: { admin: boolean }) {
     catch (error) { message.error(error instanceof Error ? error.message : "导入失败"); }
     return false;
   };
+  const downloadTemplate = async () => {
+    try {
+      const blob = await downloadFile("/api/v1/import-batches/template");
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "riskhub-finding-import-template.xlsx";
+      link.click();
+      URL.revokeObjectURL(url);
+      message.success("模板已下载");
+    } catch (error) { message.error(error instanceof Error ? error.message : "模板下载失败"); }
+  };
   if (!admin) return <><PageHeader title="导入批次" description="仅平台管理员可以查看接入批次" /><Alert type="warning" showIcon message="无权访问" /></>;
-  return <><PageHeader title="导入批次" description="追踪每一次数据接入和处理结果" extra={<Button type="primary" icon={<CloudUploadOutlined />} onClick={() => setOpen(true)}>导入风险</Button>} /><Card><Table rowKey="id" loading={batches.isLoading} dataSource={batches.data || []} columns={[{ title: "批次编号", dataIndex: "batch_no", render: value => <Text className="finding-no">{value}</Text> }, { title: "文件", dataIndex: "filename" }, { title: "时间", dataIndex: "created_at", render: dateText }, { title: "总数", dataIndex: "total_count" }, { title: "成功", dataIndex: "success_count" }, { title: "失败", dataIndex: "failed_count" }, { title: "跳过", dataIndex: "skipped_count" }, { title: "状态", dataIndex: "status", render: value => <Tag color={value === "success" ? "green" : value === "failed" ? "red" : "gold"}>{value}</Tag> }]} /></Card><Modal open={open} title="导入 Excel 风险数据" onCancel={() => setOpen(false)} footer={null}><Space direction="vertical" className="full-width"><Select className="full-width" placeholder="选择来源" value={sourceId} onChange={setSourceId} options={(sources.data || []).map(source => ({ value: source.id, label: source.name }))} /><Upload.Dragger accept=".xlsx" maxCount={1} beforeUpload={upload}><CloudUploadOutlined className="upload-icon" /><p>点击或拖拽 Excel 文件到此处</p><Text type="secondary">必须包含 title 与 severity 列，最多 10,000 条</Text></Upload.Dragger></Space></Modal></>;
+  return <><PageHeader title="导入批次" description="追踪每一次数据接入和处理结果" extra={<Button type="primary" icon={<CloudUploadOutlined />} onClick={() => setOpen(true)}>导入风险</Button>} /><Card><Table rowKey="id" loading={batches.isLoading} dataSource={batches.data || []} columns={[{ title: "批次编号", dataIndex: "batch_no", render: value => <Text className="finding-no">{value}</Text> }, { title: "文件", dataIndex: "filename" }, { title: "时间", dataIndex: "created_at", render: dateText }, { title: "总数", dataIndex: "total_count" }, { title: "成功", dataIndex: "success_count" }, { title: "失败", dataIndex: "failed_count" }, { title: "跳过", dataIndex: "skipped_count" }, { title: "状态", dataIndex: "status", render: value => <Tag color={value === "success" ? "green" : value === "failed" ? "red" : "gold"}>{value}</Tag> }]} /></Card><Modal open={open} title="导入 Excel 风险数据" onCancel={() => setOpen(false)} footer={null}><Space direction="vertical" size={14} className="full-width"><div className="template-callout"><div><strong>首次导入？请先使用标准模板</strong><Text type="secondary">模板包含字段说明、示例数据和风险等级下拉校验，可减少导入错误。</Text></div><Button icon={<DownloadOutlined />} onClick={downloadTemplate}>下载 Excel 模板</Button></div><Select className="full-width" placeholder="选择来源" value={sourceId} onChange={setSourceId} options={(sources.data || []).map(source => ({ value: source.id, label: source.name }))} /><Upload.Dragger accept=".xlsx" maxCount={1} beforeUpload={upload}><CloudUploadOutlined className="upload-icon" /><p>点击或拖拽 Excel 文件到此处</p><Text type="secondary">必须包含 title 与 severity 列，最多 10,000 条</Text></Upload.Dragger></Space></Modal></>;
 }
 
 function ReportsPage() {
@@ -307,8 +348,31 @@ function ReportsPage() {
 }
 
 function SettingsPage({ admin }: { admin: boolean }) {
-  const cards = [["等级映射", "将来源等级归一化为统一五级标准"], ["去重规则", "配置稳定 ID、字段指纹和作用域"], ["SLA 策略", "按等级配置整改时限和提醒"], ["自动分派", "根据资产自动设置治理责任人"], ["通知规则", "配置临期、逾期与驳回通知"], ["风险接受", "配置审批、期限和到期恢复"]];
-  return <><PageHeader title="治理配置" description="统一配置分级、去重、SLA 和通知规则" />{!admin && <Alert type="warning" showIcon message="配置仅对平台管理员开放" />}<div className="source-grid">{cards.map(([title, desc], index) => <Card key={title}><span className="source-icon">{String(index + 1).padStart(2,"0")}</span><Title level={4}>{title}</Title><Paragraph type="secondary">{desc}</Paragraph><Button disabled={!admin}>配置</Button></Card>)}</div></>;
+  const queryClient = useQueryClient();
+  const [selected, setSelected] = useState<GovernanceSetting | null>(null);
+  const [form] = Form.useForm();
+  const settings = useQuery({ queryKey: ["governance-settings"], queryFn: () => api<GovernanceSetting[]>("/api/v1/governance-settings"), enabled: admin });
+  const save = useMutation({ mutationFn: (config: Record<string, string | number | boolean>) => api<GovernanceSetting>(`/api/v1/governance-settings/${selected!.key}`, { method: "PATCH", body: JSON.stringify({ config, version: selected!.version }) }), onSuccess: async () => { message.success("治理规则已更新"); setSelected(null); form.resetFields(); await queryClient.invalidateQueries({ queryKey: ["governance-settings"] }); }, onError: error => message.error(error instanceof Error ? error.message : "保存失败") });
+  const cards = [
+    ["severity_mapping", "等级映射", "将来源等级归一化为统一五级标准"], ["deduplication", "去重规则", "配置稳定 ID、字段指纹和作用域"],
+    ["sla", "SLA 策略", "按等级配置整改时限和提醒"], ["auto_assignment", "自动分派", "根据资产自动设置治理责任人"],
+    ["notifications", "通知规则", "配置临期、逾期与驳回通知"], ["risk_acceptance", "风险接受", "配置审批、期限和到期恢复"]
+  ];
+  const openSetting = (key: string) => {
+    const setting = settings.data?.find(item => item.key === key);
+    if (!setting) return;
+    setSelected(setting);
+    form.setFieldsValue(setting.config);
+  };
+  const fields: Record<string, ReactNode> = {
+    severity_mapping: <div className="settings-field-grid">{(["critical", "high", "medium", "low", "info"] as Severity[]).map(key => <Form.Item key={key} name={key} label={`${severityLabels[key]}显示名称`} rules={[{ required: true }]}><Input /></Form.Item>)}</div>,
+    deduplication: <><Form.Item name="stable_id_enabled" label="稳定 ID 去重" valuePropName="checked"><Switch /></Form.Item><Form.Item name="field_hash_enabled" label="字段指纹去重" valuePropName="checked"><Switch /></Form.Item><Form.Item name="scope" label="去重作用域" rules={[{ required: true }]}><Select options={[{ value: "source_asset", label: "来源 + 资产" }, { value: "global_asset", label: "全局 + 资产" }, { value: "source", label: "仅来源内" }]} /></Form.Item></>,
+    sla: <div className="settings-field-grid">{(["critical", "high", "medium", "low", "info"] as Severity[]).map(key => <Form.Item key={key} name={`${key}_days`} label={`${severityLabels[key]}整改时限（天）`} rules={[{ required: true }]}><InputNumber min={1} max={365} className="full-width" /></Form.Item>)}<Form.Item name="remind_before_days" label="提前提醒（天）" rules={[{ required: true }]}><InputNumber min={1} max={30} className="full-width" /></Form.Item></div>,
+    auto_assignment: <><Form.Item name="enabled" label="启用自动分派" valuePropName="checked"><Switch /></Form.Item><Form.Item name="strategy" label="分派依据" rules={[{ required: true }]}><Select options={[{ value: "asset_owner", label: "资产 Owner" }, { value: "asset_team", label: "资产所属团队" }, { value: "source_mapping", label: "来源映射规则" }]} /></Form.Item><Form.Item name="fallback_to_admin" label="无法匹配时分派给管理员" valuePropName="checked"><Switch /></Form.Item></>,
+    notifications: <><div className="settings-switch-list">{[["assignment", "风险分派"], ["approaching_sla", "SLA 临期"], ["overdue", "SLA 逾期"], ["verification_rejected", "验证驳回"]].map(([key, label]) => <Form.Item key={key} name={key} label={label} valuePropName="checked"><Switch /></Form.Item>)}</div><Form.Item name="channel" label="通知渠道" rules={[{ required: true }]}><Select options={[{ value: "in_app", label: "站内通知" }, { value: "feishu", label: "飞书机器人" }, { value: "email", label: "邮件" }]} /></Form.Item></>,
+    risk_acceptance: <><Form.Item name="max_days" label="最长接受期限（天）" rules={[{ required: true }]}><InputNumber min={1} max={365} className="full-width" /></Form.Item><Form.Item name="require_compensating_control" label="必须填写补偿措施" valuePropName="checked"><Switch /></Form.Item><Form.Item name="restore_on_expiry" label="到期自动恢复治理" valuePropName="checked"><Switch /></Form.Item><Form.Item name="approver_role" label="审批角色"><Select options={[{ value: "platform_admin", label: "平台管理员" }]} /></Form.Item></>
+  };
+  return <><PageHeader title="治理配置" description="统一配置分级、去重、SLA 和通知规则" />{!admin && <Alert type="warning" showIcon message="配置仅对平台管理员开放" />}{admin && <div className="source-grid">{cards.map(([key, title, desc], index) => { const setting = settings.data?.find(item => item.key === key); return <Card key={key} loading={settings.isLoading}><div className="setting-card-heading"><span className="source-icon">{String(index + 1).padStart(2,"0")}</span>{setting && <Tag color="green">已启用</Tag>}</div><Title level={4}>{title}</Title><Paragraph type="secondary">{desc}</Paragraph><div className="setting-card-footer"><Text type="secondary">{setting ? `版本 v${setting.version} · ${dayjs(setting.updated_at).format("MM-DD HH:mm")}` : "正在读取配置"}</Text><Button icon={<EditOutlined />} disabled={!setting} onClick={() => openSetting(key)}>配置</Button></div></Card>; })}</div>}<Modal open={Boolean(selected)} title={`配置 · ${selected?.title || ""}`} onCancel={() => { setSelected(null); form.resetFields(); }} onOk={() => form.validateFields().then(values => save.mutate(values))} confirmLoading={save.isPending} okText="保存规则" destroyOnHidden><Alert className="settings-modal-tip" type="info" showIcon message="保存后立即对新进入治理流程的风险生效，并记录审计日志。" /><Form form={form} layout="vertical">{selected ? fields[selected.key] : null}</Form></Modal></>;
 }
 
 function AuditPage({ admin }: { admin: boolean }) {

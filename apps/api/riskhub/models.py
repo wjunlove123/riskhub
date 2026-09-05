@@ -99,6 +99,16 @@ class Source(TimestampMixin, Base):
     mapping_config: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
 
 
+class GovernanceSetting(TimestampMixin, Base):
+    __tablename__ = "governance_settings"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    key: Mapped[str] = mapped_column(String(80), unique=True, index=True)
+    title: Mapped[str] = mapped_column(String(120))
+    config: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+
+
 class ImportBatch(TimestampMixin, Base):
     __tablename__ = "import_batches"
     __table_args__ = (UniqueConstraint("source_id", "idempotency_key", name="uq_batch_source_idempotency"),)
@@ -271,4 +281,3 @@ class AuditEvent(Base):
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
 
     actor: Mapped[User | None] = relationship()
-

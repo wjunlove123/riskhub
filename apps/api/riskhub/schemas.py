@@ -72,6 +72,19 @@ class SourceCreate(BaseModel):
     mapping_config: dict[str, Any] = Field(default_factory=dict)
 
 
+class GovernanceSettingPublic(ORMModel):
+    key: str
+    title: str
+    config: dict[str, Any]
+    version: int
+    updated_at: datetime
+
+
+class GovernanceSettingUpdate(BaseModel):
+    config: dict[str, Any]
+    version: int
+
+
 class ObservationInput(BaseModel):
     source_finding_id: str | None = None
     source_rule_id: str | None = None
@@ -233,4 +246,3 @@ class AuditPublic(ORMModel):
     after_data: dict[str, Any] | None
     occurred_at: datetime
     actor: UserPublic | None
-

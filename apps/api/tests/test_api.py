@@ -1,7 +1,7 @@
 import io
 from datetime import datetime, timedelta, timezone
 
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
 
 
 def first_with_status(client, headers, status):
@@ -76,6 +76,38 @@ def test_excel_import(client, admin_headers):
     )
     assert response.status_code == 201, response.text
     assert response.json()["success_count"] == 1
+
+
+def test_excel_import_template_has_guidance_and_validation(client, admin_headers):
+    response = client.get("/api/v1/import-batches/template", headers=admin_headers)
+    assert response.status_code == 200, response.text
+    assert response.headers["content-type"].startswith("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    workbook = load_workbook(io.BytesIO(response.content))
+    assert workbook.sheetnames == ["风险导入", "填写说明"]
+    sheet = workbook["风险导入"]
+    assert [cell.value for cell in sheet[1]][:6] == ["source_finding_id", "source_rule_id", "title", "description", "recommendation", "severity"]
+    assert sheet["C1"].comment is not None
+    assert len(sheet.data_validations.dataValidation) == 1
+    assert "F2:F10001" in str(sheet.data_validations.dataValidation[0].sqref)
+
+
+def test_governance_settings_can_be_updated_and_are_audited(client, admin_headers, remediator_headers):
+    response = client.get("/api/v1/governance-settings", headers=admin_headers)
+    assert response.status_code == 200
+    assert len(response.json()) == 6
+    sla = next(item for item in response.json() if item["key"] == "sla")
+    config = {**sla["config"], "high_days": 10}
+    updated = client.patch(
+        "/api/v1/governance-settings/sla",
+        headers=admin_headers,
+        json={"config": config, "version": sla["version"]},
+    )
+    assert updated.status_code == 200, updated.text
+    assert updated.json()["config"]["high_days"] == 10
+    assert updated.json()["version"] == sla["version"] + 1
+    assert client.get("/api/v1/governance-settings", headers=remediator_headers).status_code == 403
+    audit_events = client.get("/api/v1/audit-events", headers=admin_headers).json()
+    assert any(item["action"] == "GOVERNANCE_SETTING_UPDATED" and item["object_id"] == "sla" for item in audit_events)
 
 
 def test_full_remediation_and_verification_workflow(client, admin_headers, remediator_headers, verifier_headers):
