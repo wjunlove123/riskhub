@@ -1,0 +1,165 @@
+import io
+from datetime import datetime, timedelta, timezone
+
+from openpyxl import Workbook
+
+
+def first_with_status(client, headers, status):
+    response = client.get(f"/api/v1/findings?status={status}", headers=headers)
+    assert response.status_code == 200, response.text
+    items = response.json()["items"]
+    assert items, f"no finding with status {status}"
+    return items[0]
+
+
+def test_health_login_and_current_user(client, admin_headers):
+    assert client.get("/health").json()["status"] == "ok"
+    response = client.get("/api/v1/me", headers=admin_headers)
+    assert response.status_code == 200
+    assert response.json()["roles"] == ["platform_admin"]
+    assert response.headers["x-request-id"]
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["x-frame-options"] == "DENY"
+
+
+def test_role_scoped_access_and_admin_only_endpoint(client, admin_headers, remediator_headers):
+    admin_findings = client.get("/api/v1/findings", headers=admin_headers).json()
+    remediation_findings = client.get("/api/v1/findings", headers=remediator_headers).json()
+    assert admin_findings["total"] >= 6
+    assert 0 < remediation_findings["total"] <= admin_findings["total"]
+    assert client.get("/api/v1/audit-events", headers=remediator_headers).status_code == 403
+    target = remediation_findings["items"][0]
+    response = client.patch(
+        f"/api/v1/findings/{target['id']}/severity",
+        headers=remediator_headers,
+        json={"severity": "low", "reason": "越权测试", "version": target["version"]},
+    )
+    assert response.status_code == 403
+
+
+def test_api_import_idempotency_and_deduplication(client, admin_headers):
+    source = client.get("/api/v1/sources", headers=admin_headers).json()[0]
+    payload = {
+        "source_id": source["id"],
+        "records": [{
+            "source_finding_id": "IDEMPOTENT-001",
+            "source_rule_id": "TEST-RULE",
+            "title": "幂等与去重测试风险",
+            "severity": "high",
+            "asset_code": "OPS-PLATFORM",
+            "location": "/admin"
+        }]
+    }
+    headers = {**admin_headers, "Idempotency-Key": "api-test-idempotent"}
+    first = client.post("/api/v1/import-batches/api", headers=headers, json=payload)
+    second = client.post("/api/v1/import-batches/api", headers=headers, json=payload)
+    assert first.status_code == 201, first.text
+    assert second.status_code == 201, second.text
+    assert first.json()["id"] == second.json()["id"]
+    findings = client.get("/api/v1/findings?q=幂等与去重测试风险", headers=admin_headers).json()
+    assert findings["total"] == 1
+    assert findings["items"][0]["observation_count"] == 1
+
+
+def test_excel_import(client, admin_headers):
+    source = next(item for item in client.get("/api/v1/sources", headers=admin_headers).json() if item["ingestion_type"] == "excel")
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.append(["source_finding_id", "source_rule_id", "title", "severity", "asset_code", "location"])
+    sheet.append(["EXCEL-001", "EXCEL-RULE", "Excel 导入测试风险", "medium", "MEMBER-DB", "member-db:5432"])
+    content = io.BytesIO()
+    workbook.save(content)
+    response = client.post(
+        f"/api/v1/import-batches/files?source_id={source['id']}",
+        headers={**admin_headers, "Idempotency-Key": "excel-test"},
+        files={"file": ("findings.xlsx", content.getvalue(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+    )
+    assert response.status_code == 201, response.text
+    assert response.json()["success_count"] == 1
+
+
+def test_full_remediation_and_verification_workflow(client, admin_headers, remediator_headers, verifier_headers):
+    finding = first_with_status(client, admin_headers, "pending_confirmation")
+    users = client.get("/api/v1/users", headers=admin_headers).json()
+    admin = next(item for item in users if "platform_admin" in item["roles"])
+    remediator = next(item for item in users if "remediator" in item["roles"])
+    verifier = next(item for item in users if "verifier" in item["roles"])
+    assigned = client.patch(
+        f"/api/v1/findings/{finding['id']}/assignment",
+        headers=admin_headers,
+        json={
+            "owner_id": admin["id"],
+            "assignee_id": remediator["id"],
+            "verifier_id": verifier["id"],
+            "due_at": (datetime.now(timezone.utc) + timedelta(days=7)).isoformat(),
+            "reason": "测试流程分派",
+            "version": finding["version"],
+        },
+    )
+    assert assigned.status_code == 200, assigned.text
+    confirmed = client.post(
+        f"/api/v1/findings/{finding['id']}/transitions",
+        headers=admin_headers,
+        json={"action": "CONFIRM", "reason": "确认需要整改", "version": assigned.json()["version"]},
+    )
+    assert confirmed.status_code == 200, confirmed.text
+    assert confirmed.json()["status"] == "pending_remediation"
+
+    started = client.post(
+        f"/api/v1/findings/{finding['id']}/transitions",
+        headers=remediator_headers,
+        json={"action": "START_REMEDIATION", "reason": "开始整改", "version": confirmed.json()["version"]},
+    )
+    assert started.status_code == 200, started.text
+    assert started.json()["status"] == "in_remediation"
+
+    submitted = client.post(
+        f"/api/v1/findings/{finding['id']}/remediations",
+        headers=remediator_headers,
+        json={"description": "已完成修复并启用控制措施", "evidence": ["https://evidence.example/test"], "version": started.json()["version"]},
+    )
+    assert submitted.status_code == 200, submitted.text
+    assert submitted.json()["status"] == "pending_verification"
+
+    verified = client.post(
+        f"/api/v1/findings/{finding['id']}/verifications",
+        headers=verifier_headers,
+        json={"result": "passed", "method": "manual", "comment": "复测通过", "version": submitted.json()["version"]},
+    )
+    assert verified.status_code == 200, verified.text
+    assert verified.json()["status"] == "closed"
+    events = client.get(f"/api/v1/findings/{finding['id']}/events", headers=admin_headers).json()
+    assert {item["event_type"] for item in events} >= {"START_REMEDIATION", "REMEDIATION_SUBMITTED", "VERIFICATION_PASSED"}
+
+
+def test_risk_acceptance_request_and_approval(client, admin_headers, remediator_headers):
+    finding = first_with_status(client, remediator_headers, "pending_remediation")
+    requested = client.post(
+        f"/api/v1/findings/{finding['id']}/risk-acceptances",
+        headers=remediator_headers,
+        json={
+            "reason": "业务窗口暂不可整改",
+            "compensating_control": "限制网络访问并增加监控",
+            "expires_at": (datetime.now(timezone.utc) + timedelta(days=20)).isoformat(),
+            "version": finding["version"],
+        },
+    )
+    assert requested.status_code == 200, requested.text
+    assert requested.json()["status"] == "acceptance_requested"
+    approved = client.post(
+        f"/api/v1/findings/{finding['id']}/risk-acceptances/decision",
+        headers=admin_headers,
+        json={"approved": True, "comment": "同意临时接受", "version": requested.json()["version"]},
+    )
+    assert approved.status_code == 200, approved.text
+    assert approved.json()["status"] == "risk_accepted"
+
+
+def test_dashboard_reports_and_audit(client, admin_headers):
+    summary = client.get("/api/v1/dashboard/summary", headers=admin_headers)
+    report = client.get("/api/v1/reports/overview", headers=admin_headers)
+    audit = client.get("/api/v1/audit-events", headers=admin_headers)
+    assert summary.status_code == report.status_code == audit.status_code == 200
+    assert "by_severity" in summary.json()
+    assert "sla_compliance" in report.json()
+    assert len(audit.json()) > 0
