@@ -16,6 +16,8 @@ assert.match(css, /@media \(max-width: 820px\)/);
 assert.match(css, /\[data-theme="dark"\]/);
 assert.match(js, /riskhub-theme/);
 assert.match(js, /toggle-theme/);
+assert.match(js, /项风险/);
+assert.doesNotMatch(js, /FINDINGS/);
 
 for (const role of ["平台管理员", "整改人员", "验证人员"]) {
   assert.match(js, new RegExp(role));

@@ -168,14 +168,14 @@ function dashboardPage() {
   return `
     <div class="notice"><span><strong>今日治理提醒：</strong> 2 项严重风险已逾期，4 项风险等待验证。</span><button class="btn small" data-nav="mywork">查看我的待办</button></div>
     <section class="metric-grid">
-      ${metricCard("有效风险", "146", "FINDINGS", "blue", "较上周 +8")}
-      ${metricCard("严重 / 高危", "38", "FINDINGS", "red", "优先处理")}
-      ${metricCard("即将违反 SLA", "12", "FINDINGS", "orange", "未来 3 天")}
-      ${metricCard("本周已关闭", "27", "FINDINGS", "green", "达标率 91.6%")}
-      ${metricCard("待确认", "16", "FINDINGS", "yellow", "含 5 项未分配")}
-      ${metricCard("整改中", "54", "FINDINGS", "blue", "平均 6.2 天")}
-      ${metricCard("待验证", "9", "FINDINGS", "orange", "最久等待 2 天")}
-      ${metricCard("风险已接受", "7", "FINDINGS", "green", "2 项本月到期")}
+      ${metricCard("有效风险", "146", "项风险", "blue", "较上周 +8")}
+      ${metricCard("严重 / 高危", "38", "项风险", "red", "优先处理")}
+      ${metricCard("即将违反 SLA", "12", "项风险", "orange", "未来 3 天")}
+      ${metricCard("本周已关闭", "27", "项风险", "green", "达标率 91.6%")}
+      ${metricCard("待确认", "16", "项风险", "yellow", "含 5 项未分配")}
+      ${metricCard("整改中", "54", "项风险", "blue", "平均 6.2 天")}
+      ${metricCard("待验证", "9", "项风险", "orange", "最久等待 2 天")}
+      ${metricCard("风险已接受", "7", "项风险", "green", "2 项本月到期")}
     </section>
     <section class="dashboard-grid">
       <div class="card"><div class="card-head"><div class="card-title">优先处理</div><button class="btn ghost small" data-nav="findings">查看全部 →</button></div><div class="stack-list">

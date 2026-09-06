@@ -27,6 +27,7 @@ const statusLabels: Record<FindingStatus, string> = {
   acceptance_requested: "风险接受申请", risk_accepted: "风险已接受"
 };
 const severityColors: Record<Severity, string> = { critical: "red", high: "orange", medium: "gold", low: "blue", info: "default" };
+export const findingCountUnit = "项风险";
 
 function BrandMark({ large = false }: { large?: boolean }) {
   return <span className={`riskhub-mark${large ? " riskhub-mark--large" : ""}`} role="img" aria-label="RiskHub 闭环治理标识">
@@ -195,7 +196,7 @@ function Dashboard() {
     ["待确认", data.by_status.pending_confirmation || 0, "gold"], ["整改中", data.by_status.in_remediation || 0, "blue"], ["待验证", data.by_status.pending_verification || 0, "orange"], ["风险已接受", data.by_status.risk_accepted || 0, "green"]
   ];
   return <><PageHeader title="工作台" description="掌握风险态势和今天需要处理的事项" /><Alert showIcon type="info" message="今日治理提醒" description="优先关注严重、高危及即将违反 SLA 的风险。" action={<Button onClick={() => navigate("/my-work")}>查看我的待办</Button>} />
-    <div className="metric-grid">{metrics.map(([title, value, color]) => <Card key={String(title)} title={title as string} extra="↻"><Statistic value={value as number} valueStyle={{ color: `var(--metric-${color})` }} suffix={<span className="stat-suffix">FINDINGS</span>} /></Card>)}</div>
+    <div className="metric-grid">{metrics.map(([title, value, color]) => <Card key={String(title)} title={title as string} extra="↻"><Statistic value={value as number} valueStyle={{ color: `var(--metric-${color})` }} suffix={<span className="stat-suffix">{findingCountUnit}</span>} /></Card>)}</div>
     <div className="dashboard-grid"><Card title="优先处理" extra={<Button type="link" onClick={() => navigate("/findings")}>查看全部 →</Button>}><Table rowKey="id" pagination={false} showHeader={false} loading={priorities.isLoading} dataSource={priorities.data || []} onRow={record => ({ onClick: () => navigate(`/findings/${record.id}`) })} columns={[
       { render: (_, row) => <SeverityTag value={row.severity} /> }, { render: (_, row) => <div><strong>{row.title}</strong><div className="muted-line">{row.finding_no} · {row.asset.name} · {statusLabels[row.status]}</div></div> }, { align: "right", render: (_, row) => <Text type={row.due_at && dayjs(row.due_at).isBefore(dayjs()) ? "danger" : "secondary"}>{dateText(row.due_at)}</Text> }
     ]} /></Card><Card title="风险等级饼图" extra={<Text type="secondary">点击扇区筛选</Text>}><SeverityPie values={data.by_severity} /></Card></div>

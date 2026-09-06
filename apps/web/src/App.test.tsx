@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
-import { App, SeverityPie } from "./App";
+import { App, findingCountUnit, SeverityPie } from "./App";
 import { api } from "./api";
 
 function LocationProbe() {
@@ -10,6 +10,10 @@ function LocationProbe() {
 }
 
 describe("RiskHub application", () => {
+  it("uses a Chinese unit for finding metrics", () => {
+    expect(findingCountUnit).toBe("项风险");
+  });
+
   it("shows the three supported demo roles when signed out", () => {
     localStorage.clear();
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
