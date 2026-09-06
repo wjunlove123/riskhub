@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
-import { App, findingCountUnit, RiskTrendChart, riskTrendData, SeverityPie } from "./App";
+import { App, appThemeTokens, findingCountUnit, RiskTrendChart, riskTrendData, SeverityPie } from "./App";
 import { api } from "./api";
 
 function LocationProbe() {
@@ -10,6 +10,13 @@ function LocationProbe() {
 }
 
 describe("RiskHub application", () => {
+  it("uses the same dark surface for navigation and detailed data containers", () => {
+    const tokens = appThemeTokens("dark");
+    expect(tokens.colorBgContainer).toBe("#151f2c");
+    expect(tokens.colorBgElevated).toBe(tokens.colorBgContainer);
+    expect(tokens.colorBorderSecondary).toBe("#2b394b");
+  });
+
   it("uses a Chinese unit for finding metrics", () => {
     expect(findingCountUnit).toBe("项风险");
   });

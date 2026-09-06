@@ -28,6 +28,13 @@ const statusLabels: Record<FindingStatus, string> = {
 };
 const severityColors: Record<Severity, string> = { critical: "red", high: "orange", medium: "gold", low: "blue", info: "default" };
 export const findingCountUnit = "项风险";
+export const appThemeTokens = (mode: "light" | "dark") => mode === "dark" ? {
+  colorBgBase: "#0e151f", colorBgLayout: "#0e151f", colorBgContainer: "#151f2c", colorBgElevated: "#151f2c",
+  colorBorder: "#2b394b", colorBorderSecondary: "#2b394b", colorText: "#e7edf5", colorTextSecondary: "#9aaabd"
+} : {
+  colorBgBase: "#ffffff", colorBgLayout: "#f2f5f9", colorBgContainer: "#ffffff", colorBgElevated: "#ffffff",
+  colorBorder: "#dbe3ee", colorBorderSecondary: "#dbe3ee", colorText: "#27364b", colorTextSecondary: "#6f7f95"
+};
 
 function BrandMark({ large = false }: { large?: boolean }) {
   return <span className={`riskhub-mark${large ? " riskhub-mark--large" : ""}`} role="img" aria-label="RiskHub 闭环治理标识">
@@ -43,7 +50,7 @@ function useCurrentUser(enabled: boolean) {
 export function App() {
   const [colorMode, setColorMode] = useState<"light" | "dark">(() => localStorage.getItem("riskhub-theme") === "dark" ? "dark" : "light");
   useEffect(() => { document.documentElement.dataset.theme = colorMode; localStorage.setItem("riskhub-theme", colorMode); }, [colorMode]);
-  return <ConfigProvider theme={{ algorithm: colorMode === "dark" ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm, token: { colorPrimary: "#2478d4", borderRadius: 8, fontFamily: '-apple-system,"PingFang SC","Noto Sans SC",sans-serif' } }}>
+  return <ConfigProvider theme={{ algorithm: colorMode === "dark" ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm, token: { ...appThemeTokens(colorMode), colorPrimary: colorMode === "dark" ? "#56a3f3" : "#2478d4", borderRadius: 8, fontFamily: '-apple-system,"PingFang SC","Noto Sans SC",sans-serif' } }}>
     <AntApp><RiskHub colorMode={colorMode} setColorMode={setColorMode} /></AntApp>
   </ConfigProvider>;
 }
