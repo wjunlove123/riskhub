@@ -374,7 +374,28 @@ function BatchesPage({ admin }: { admin: boolean }) {
 function ReportsPage() {
   const report = useQuery({ queryKey: ["report-overview"], queryFn: () => api<any>("/api/v1/reports/overview") });
   const data = report.data || {};
-  return <><PageHeader title="报表中心" description="观察风险趋势、整改效率和 SLA 表现" /><Alert type="info" showIcon message="统计口径" description="有效风险不包含已关闭与误报；SLA 从进入待整改状态开始计算。" /><div className="metric-grid report-metrics"><Card><Statistic title="累计风险" value={data.total_findings || 0} /></Card><Card><Statistic title="有效风险" value={data.active_findings || 0} /></Card><Card><Statistic title="SLA 达标率" value={data.sla_compliance || 0} suffix="%" /></Card><Card><Statistic title="接入成功率" value={data.import_success_rate || 0} suffix="%" /></Card></div><div className="dashboard-grid"><Card title="近 6 个月风险趋势"><div className="fake-chart">{[38,55,44,66,73,58].map((value,index) => <div key={index}><span style={{height:`${value*2}px`}} /><Text type="secondary">{index+4}月</Text></div>)}</div></Card><Card title="治理质量"><div className="severity-bars"><div><div className="bar-label"><span>SLA 达标率</span><strong>{data.sla_compliance || 0}%</strong></div><Progress percent={data.sla_compliance || 0} /></div><div><div className="bar-label"><span>接入成功率</span><strong>{data.import_success_rate || 0}%</strong></div><Progress percent={data.import_success_rate || 0} strokeColor="var(--metric-green)" /></div></div></Card></div></>;
+  return <><PageHeader title="报表中心" description="观察风险趋势、整改效率和 SLA 表现" /><Alert type="info" showIcon message="统计口径" description="有效风险不包含已关闭与误报；SLA 从进入待整改状态开始计算。" /><div className="metric-grid report-metrics"><Card><Statistic title="累计风险" value={data.total_findings || 0} /></Card><Card><Statistic title="有效风险" value={data.active_findings || 0} /></Card><Card><Statistic title="SLA 达标率" value={data.sla_compliance || 0} suffix="%" /></Card><Card><Statistic title="接入成功率" value={data.import_success_rate || 0} suffix="%" /></Card></div><div className="dashboard-grid"><Card title="近 6 个月风险趋势" extra={<Text type="secondary">新增风险（项）</Text>}><RiskTrendChart /></Card><Card title="治理质量"><div className="severity-bars"><div><div className="bar-label"><span>SLA 达标率</span><strong>{data.sla_compliance || 0}%</strong></div><Progress percent={data.sla_compliance || 0} /></div><div><div className="bar-label"><span>接入成功率</span><strong>{data.import_success_rate || 0}%</strong></div><Progress percent={data.import_success_rate || 0} strokeColor="var(--metric-green)" /></div></div></Card></div></>;
+}
+
+export const riskTrendData = [
+  { month: "4月", value: 38 }, { month: "5月", value: 55 }, { month: "6月", value: 44 },
+  { month: "7月", value: 66 }, { month: "8月", value: 73 }, { month: "9月", value: 58 }
+];
+
+export function RiskTrendChart() {
+  const ceiling = 80;
+  const total = riskTrendData.reduce((sum, item) => sum + item.value, 0);
+  const peak = Math.max(...riskTrendData.map(item => item.value));
+  const latest = riskTrendData.at(-1)!;
+  const previous = riskTrendData.at(-2)!;
+  const change = Math.round(((latest.value - previous.value) / previous.value) * 100);
+  return <div className="risk-trend" role="img" aria-label={`近六个月共新增 ${total} 项风险，峰值为 ${peak} 项，${latest.month}新增 ${latest.value} 项`}>
+    <div className="risk-trend__summary"><div><strong>{total}</strong><span>近 6 个月累计新增</span></div><Tag color={change < 0 ? "green" : "orange"}>{latest.month}环比 {change > 0 ? "+" : ""}{change}%</Tag></div>
+    <div className="risk-trend__chart">
+      <div className="risk-trend__axis" aria-hidden="true">{[80, 60, 40, 20, 0].map(value => <span key={value}>{value}</span>)}</div>
+      <div className="risk-trend__plot">{[80, 60, 40, 20, 0].map(value => <i className="risk-trend__gridline" key={value} />)}<div className="risk-trend__bars">{riskTrendData.map(item => <div className="risk-trend__column" key={item.month} title={`${item.month}：新增 ${item.value} 项风险`}><div className={`risk-trend__bar${item.value === peak ? " is-peak" : ""}`} style={{ height: `${item.value / ceiling * 100}%` }}><b>{item.value}</b></div><span>{item.month}</span></div>)}</div></div>
+    </div>
+  </div>;
 }
 
 function SettingsPage({ admin }: { admin: boolean }) {
