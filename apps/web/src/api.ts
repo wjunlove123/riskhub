@@ -1,4 +1,4 @@
-import type { Finding, FindingPage, Role, User } from "./types";
+import type { Finding, FindingPage } from "./types";
 
 const API_URL = import.meta.env.VITE_API_URL || "";
 const TOKEN_KEY = "riskhub-access-token";
@@ -42,18 +42,6 @@ export async function login(username: string, password: string) {
   const result = await api<{ access_token: string }>("/api/v1/auth/login", { method: "POST", body: JSON.stringify({ username, password }) });
   localStorage.setItem(TOKEN_KEY, result.access_token);
   return result;
-}
-
-export const demoAccounts: Record<Role, { username: string; password: string }> = {
-  platform_admin: { username: "admin", password: "RiskHub123!" },
-  remediator: { username: "remediator", password: "RiskHub123!" },
-  verifier: { username: "verifier", password: "RiskHub123!" }
-};
-
-export async function switchRole(role: Role): Promise<User> {
-  const account = demoAccounts[role];
-  await login(account.username, account.password);
-  return api<User>("/api/v1/me");
 }
 
 export async function transitionFinding(finding: Finding, action: string, reason = "按流程操作") {

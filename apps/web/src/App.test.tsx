@@ -28,17 +28,19 @@ describe("RiskHub application", () => {
     expect(screen.getAllByTitle(/新增 \d+ 项风险/)).toHaveLength(riskTrendData.length);
   });
 
-  it("shows the three supported demo roles when signed out", () => {
+  it("requires a username and password when signed out", () => {
     localStorage.clear();
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(<QueryClientProvider client={client}><MemoryRouter><App /></MemoryRouter></QueryClientProvider>);
     expect(screen.getByRole("img", { name: "RiskHub 闭环治理标识" })).toBeInTheDocument();
     expect(screen.queryByText("RH")).not.toBeInTheDocument();
     expect(screen.queryByText("MVP")).not.toBeInTheDocument();
-    expect(screen.getByText("风险聚合与闭环治理")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /以平台管理员身份进入/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /以整改人员身份进入/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /以验证人员身份进入/ })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "登录 RiskHub" })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "用户名" })).toBeInTheDocument();
+    expect(screen.getByLabelText("密码")).toHaveAttribute("type", "password");
+    expect(screen.getByRole("button", { name: /登\s*录/ })).toBeInTheDocument();
+    expect(screen.queryByText("RiskHub123!")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /以平台管理员身份进入/ })).not.toBeInTheDocument();
   });
 
   it("navigates from a pie segment to the matching severity list", () => {

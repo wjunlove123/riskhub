@@ -80,7 +80,7 @@ body { color: var(--ink); background: var(--canvas); font-family: -apple-system,
 .riskhub-mark--large::after { top: 7px; right: 7px; width: 7px; height: 7px; }
 .header-spacer { flex: 1; }
 .global-search { width: min(320px, 25vw); }
-.role-select { width: 126px; }
+.role-badge { min-height: 30px; margin: 0; padding: 4px 10px; display: inline-flex; align-items: center; gap: 4px; font-size: 13px; }
 .app-sider { position: sticky !important; top: 64px; height: calc(100vh - 64px); overflow: auto; background: var(--panel) !important; border-right: 1px solid var(--line); }
 .app-sider .ant-menu { padding-top: 18px; background: transparent; border-inline-end: 0 !important; }
 .demo-note { margin: 22px 14px; padding: 13px; color: var(--muted); background: color-mix(in srgb, var(--brand) 5%, var(--panel)); border: 1px solid var(--line); border-radius: 8px; font-size: 12px; }
@@ -93,7 +93,8 @@ body { color: var(--ink); background: var(--canvas); font-family: -apple-system,
 .login-card { width: min(460px, 100%); padding: 34px; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 20px 60px rgba(20, 40, 70, .12); }
 .login-brand { display: grid; grid-template-columns: auto auto 1fr; align-items: center; gap: 11px; color: var(--ink); font-size: 22px; }
 .brand-descriptor { justify-self: end; color: var(--muted); font-size: 9px; font-weight: 750; letter-spacing: .16em; }
-.role-options { display: grid; gap: 10px; margin: 24px 0 16px; }
+.login-form { margin: 24px 0 16px; }
+.login-form .ant-form-item { margin-bottom: 16px; }
 .login-hint { display: block; text-align: center; }
 .theme-float { position: absolute; top: 24px; right: 24px; width: 40px; height: 40px; color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; cursor: pointer; }
 .metric-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin: 16px 0; }
@@ -184,7 +185,7 @@ body { color: var(--ink); background: var(--canvas); font-family: -apple-system,
 @media (max-width: 760px) {
   .top-header { padding: 0 10px; gap: 6px; }
   .brand { min-width: auto; }
-  .brand strong, .brand .ant-tag, .role-select + button { display: none; }
+  .brand strong, .brand .ant-tag { display: none; }
   .main-content { padding: 18px 12px 36px; }
   .metric-grid, .source-grid { grid-template-columns: 1fr; }
   .page-header { flex-direction: column; }

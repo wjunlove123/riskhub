@@ -13,7 +13,7 @@ import {
 } from "@ant-design/icons";
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import dayjs from "dayjs";
-import { api, clearToken, demoAccounts, downloadFile, findingQuery, getToken, login, switchRole, transitionFinding } from "./api";
+import { api, clearToken, downloadFile, findingQuery, getToken, login, transitionFinding } from "./api";
 import type { Asset, AuditEvent, Batch, Finding, FindingEvent, FindingStatus, GovernanceSetting, Observation, Role, Severity, Source, User } from "./types";
 
 const { Header, Sider, Content } = Layout;
@@ -60,29 +60,29 @@ function RiskHub({ colorMode, setColorMode }: { colorMode: "light" | "dark"; set
   const current = useCurrentUser(authenticated);
   if (!authenticated || current.isError) return <LoginScreen onSuccess={() => setAuthenticated(true)} colorMode={colorMode} setColorMode={setColorMode} />;
   if (current.isLoading || !current.data) return <div className="center-screen"><Spin size="large" /></div>;
-  return <AppShell user={current.data} onUserChange={() => current.refetch()} onLogout={() => setAuthenticated(false)} colorMode={colorMode} setColorMode={setColorMode} />;
+  return <AppShell user={current.data} onLogout={() => setAuthenticated(false)} colorMode={colorMode} setColorMode={setColorMode} />;
 }
 
 function LoginScreen({ onSuccess, colorMode, setColorMode }: { onSuccess: () => void; colorMode: "light" | "dark"; setColorMode: (value: "light" | "dark") => void }) {
-  const [loading, setLoading] = useState<Role | null>(null);
-  const enter = async (role: Role) => {
-    setLoading(role);
-    try { const account = demoAccounts[role]; await login(account.username, account.password); onSuccess(); }
+  const [loading, setLoading] = useState(false);
+  const enter = async ({ username, password }: { username: string; password: string }) => {
+    setLoading(true);
+    try { await login(username.trim(), password); onSuccess(); }
     catch (error) { message.error(error instanceof Error ? error.message : "登录失败"); }
-    finally { setLoading(null); }
+    finally { setLoading(false); }
   };
   return <div className="login-page">
     <button className="theme-float" onClick={() => setColorMode(colorMode === "dark" ? "light" : "dark")}>{colorMode === "dark" ? <SunOutlined /> : <MoonOutlined />}</button>
     <div className="login-card">
       <div className="login-brand"><BrandMark large /><strong>RiskHub</strong><span className="brand-descriptor">RISK GOVERNANCE</span></div>
-      <Title level={2}>风险聚合与闭环治理</Title>
-      <Paragraph type="secondary">选择角色进入演示环境。所有账号使用本地种子数据，不连接外部系统。</Paragraph>
-      <div className="role-options">
-        {(Object.keys(roleLabels) as Role[]).map(role => <Button key={role} size="large" block type={role === "platform_admin" ? "primary" : "default"} loading={loading === role} onClick={() => enter(role)}>
-          <UserOutlined /> 以{roleLabels[role]}身份进入
-        </Button>)}
-      </div>
-      <Text type="secondary" className="login-hint">Demo 密码：RiskHub123!</Text>
+      <Title level={2}>登录 RiskHub</Title>
+      <Paragraph type="secondary">请输入账号和密码进入风险治理平台。</Paragraph>
+      <Form layout="vertical" onFinish={enter} requiredMark={false} className="login-form">
+        <Form.Item name="username" label="用户名" rules={[{ required: true, message: "请输入用户名" }]}><Input size="large" prefix={<UserOutlined />} autoComplete="username" placeholder="请输入用户名" /></Form.Item>
+        <Form.Item name="password" label="密码" rules={[{ required: true, message: "请输入密码" }]}><Input.Password size="large" autoComplete="current-password" placeholder="请输入密码" /></Form.Item>
+        <Button size="large" block type="primary" htmlType="submit" loading={loading}>登录</Button>
+      </Form>
+      <Text type="secondary" className="login-hint">演示账号信息请查看项目 README</Text>
     </div>
   </div>;
 }
@@ -107,19 +107,12 @@ const menuItems = [
   ]}
 ];
 
-function AppShell({ user, onUserChange, onLogout, colorMode, setColorMode }: { user: User; onUserChange: () => void; onLogout: () => void; colorMode: "light" | "dark"; setColorMode: (value: "light" | "dark") => void }) {
+function AppShell({ user, onLogout, colorMode, setColorMode }: { user: User; onLogout: () => void; colorMode: "light" | "dark"; setColorMode: (value: "light" | "dark") => void }) {
   const [collapsed, setCollapsed] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const queryClient = useQueryClient();
   const role = user.roles[0];
-  const changeRole = async (nextRole: Role) => {
-    await switchRole(nextRole);
-    navigate("/my-work");
-    await queryClient.invalidateQueries();
-    onUserChange();
-    message.success(`已切换为${roleLabels[nextRole]}视角`);
-  };
   const logout = () => { clearToken(); queryClient.clear(); onLogout(); };
   const selectedKey = location.pathname.startsWith("/findings/") ? "/findings" : location.pathname;
   return <Layout className="app-layout">
@@ -130,7 +123,7 @@ function AppShell({ user, onUserChange, onLogout, colorMode, setColorMode }: { u
       <Input.Search className="global-search" placeholder="搜索风险编号、标题或资产" onSearch={value => navigate(`/findings?q=${encodeURIComponent(value)}`)} />
       <Button icon={colorMode === "dark" ? <SunOutlined /> : <MoonOutlined />} onClick={() => setColorMode(colorMode === "dark" ? "light" : "dark")}>{colorMode === "dark" ? "浅色" : "深色"}</Button>
       <Button icon={<AlertOutlined />}>提醒 <Tag color="red">6</Tag></Button>
-      <Select value={role} className="role-select" options={(Object.keys(roleLabels) as Role[]).map(key => ({ value: key, label: roleLabels[key] }))} onChange={changeRole} />
+      <Tag className="role-badge" icon={<UserOutlined />} color="blue">{roleLabels[role]}</Tag>
       <Button type="text" onClick={logout}>退出</Button>
     </Header>
     <Layout>
