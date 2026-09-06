@@ -42,8 +42,12 @@ for (const implementedCapability of ["自定义录入", "Excel 模板", "确定�
   assert.match(readme, new RegExp(implementedCapability));
 }
 
-for (const command of ["uvicorn riskhub.main:app", "npm --prefix apps/web run dev", ".venv/bin/pytest"]) {
+for (const command of ["uvicorn riskhub.main:app", "npm --prefix apps/web run dev", ".venv/bin/python -m pytest", ".\\.venv\\Scripts\\python.exe -m pytest"]) {
   assert.ok(readme.includes(command), `README is missing command: ${command}`);
+}
+
+for (const platform of ["macOS / Linux", "Windows PowerShell"]) {
+  assert.match(readme, new RegExp(platform.replace("/", "\\/")));
 }
 
 assert.match(readme, /不要直接使用 `file:\/\//);

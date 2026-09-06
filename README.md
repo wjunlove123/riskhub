@@ -61,16 +61,27 @@ RiskHub 将不同来源发现的原始问题保存为 `Observation`，经过标�
 - Node.js 20 或更高版本
 - npm 10 或更高版本
 
-### 安装后端依赖
+### 安装后端依赖（macOS / Linux）
 
 在项目根目录执行：
 
 ```bash
 python3 -m venv .venv
-.venv/bin/pip install -e '.[test]'
+.venv/bin/python -m pip install -e '.[test]'
+```
+
+### 安装后端依赖（Windows PowerShell）
+
+在项目根目录执行：
+
+```powershell
+py -3.11 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e ".[test]"
 ```
 
 ### 安装前端依赖
+
+以下命令在 macOS、Linux 和 Windows PowerShell 中相同：
 
 ```bash
 npm install --prefix apps/web
@@ -95,17 +106,31 @@ RISKHUB_CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
 
 ## 4. 使用方法
 
-### 启动服务
+### 启动服务（macOS / Linux）
 
 启动 API：
 
 ```bash
-.venv/bin/uvicorn riskhub.main:app --app-dir apps/api --reload
+.venv/bin/python -m uvicorn riskhub.main:app --app-dir apps/api --reload
 ```
 
 另开一个终端启动 Web：
 
 ```bash
+npm --prefix apps/web run dev
+```
+
+### 启动服务（Windows PowerShell）
+
+启动 API：
+
+```powershell
+.\.venv\Scripts\python.exe -m uvicorn riskhub.main:app --app-dir apps/api --reload
+```
+
+另开一个 PowerShell 窗口启动 Web：
+
+```powershell
 npm --prefix apps/web run dev
 ```
 
@@ -132,10 +157,20 @@ API 健康检查地址为 [http://127.0.0.1:8000/health](http://127.0.0.1:8000/h
 5. 切换为验证人员，对整改结果进行验证；通过后风险关闭，驳回后返回整改中。
 6. 切回平台管理员，在工作台、报表中心和审计日志中查看治理结果。
 
-### 验证项目
+### 验证项目（macOS / Linux）
 
 ```bash
-.venv/bin/pytest
+.venv/bin/python -m pytest
+npm --prefix apps/web test
+npm --prefix apps/web run build
+node tests/docs-smoke.mjs
+node tests/demo-smoke.mjs
+```
+
+### 验证项目（Windows PowerShell）
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest
 npm --prefix apps/web test
 npm --prefix apps/web run build
 node tests/docs-smoke.mjs
