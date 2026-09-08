@@ -328,7 +328,7 @@ function AssetsPage({ admin }: { admin: boolean }) {
 }
 
 export function FeishuDirectoryCard({ status, loading, syncing, onSync }: { status?: FeishuDirectoryStatus; loading?: boolean; syncing?: boolean; onSync: () => void }) {
-  return <Card loading={loading}><div className="source-heading"><span className="source-icon">飞书</span><Tag color={status?.configured ? "green" : "orange"}>{status?.configured ? "已配置" : "待配置"}</Tag></div><Title level={4}>飞书通讯录</Title><Text type="secondary">{status?.department_name || "SRE"} 部门 · {status?.member_count || 0} 位成员</Text><div className="source-footer"><span>{status?.last_synced_at ? `上次同步 ${dayjs(status.last_synced_at).format("MM-DD HH:mm")}` : "尚未同步"}</span><Button size="small" type="primary" icon={<UserOutlined />} disabled={!status?.configured} loading={syncing} onClick={onSync}>同步通讯录</Button></div></Card>;
+  return <Card loading={loading}><div className="source-heading"><span className="source-icon">飞书</span><Tag color={status?.configured ? "green" : "orange"}>{status?.configured ? "已配置" : "待配置"}</Tag></div><Title level={4}>飞书通讯录</Title><Space orientation="vertical" size={2}><Text type="secondary">{status?.department_name || "SRE"} 部门 · {status?.member_count || 0} 位成员</Text>{status?.app_id_hint && <Text type="secondary">当前应用：{status.app_id_hint}</Text>}</Space><div className="source-footer"><span>{status?.last_synced_at ? `上次同步 ${dayjs(status.last_synced_at).format("MM-DD HH:mm")}` : "尚未同步"}</span><Button size="small" type="primary" icon={<UserOutlined />} disabled={!status?.configured} loading={syncing} onClick={onSync}>同步通讯录</Button></div></Card>;
 }
 
 function SourcesPage({ admin }: { admin: boolean }) {

@@ -92,7 +92,7 @@ npm install --prefix apps/web
 
 ### 可选环境变量
 
-后端配置使用 `RISKHUB_` 前缀，可在项目根目录的 `.env` 中覆盖：
+后端配置使用 `RISKHUB_` 前缀。系统始终按项目文件位置读取根目录的 `.env`，因此从项目根目录或 `apps/api` 目录启动均可正确加载：
 
 可先复制 `.env.example` 为 `.env`，再填写实际配置：
 
@@ -120,6 +120,8 @@ RISKHUB_FEISHU_CA_BUNDLE=
 - “无法连接飞书”或“网络或证书错误”：检查目标电脑能否访问 `https://open.feishu.cn`、系统时间、HTTPS 代理和企业 CA。使用企业自签 CA 时，将 PEM 证书链路径配置到 `RISKHUB_FEISHU_CA_BUNDLE`。
 
 修改 `.env` 后必须重启后端服务。错误信息会保留飞书 HTTP 状态和错误码，但会自动隐藏 App ID 与 App Secret。
+
+更换飞书应用后，可在“接入中心 → 飞书通讯录”的“当前应用”字段核对脱敏 App ID。如果仍显示旧 App ID，请检查操作系统、终端启动脚本或服务管理器中是否设置了旧的 `RISKHUB_FEISHU_APP_ID`；系统环境变量的优先级高于 `.env`，清除旧变量后需要完整重启后端进程。
 
 当前仓库实现的是本地可运行 MVP；技术方案中规划的 PostgreSQL、Redis、对象存储和异步 Worker 尚未作为默认运行依赖接入。
 

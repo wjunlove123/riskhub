@@ -5,6 +5,17 @@ from urllib.error import HTTPError, URLError
 import pytest
 
 from riskhub import feishu
+from riskhub.config import PROJECT_ROOT, Settings
+
+
+def test_settings_load_dotenv_from_project_root_independent_of_working_directory():
+    assert Settings.model_config["env_file"] == PROJECT_ROOT / ".env"
+    assert Settings.model_config["env_file"].is_absolute()
+
+
+def test_feishu_app_id_hint_is_safe_for_diagnostics(monkeypatch):
+    monkeypatch.setattr(feishu.settings, "feishu_app_id", "cli_1234567890abcdef")
+    assert feishu.settings.feishu_app_id_hint == "cli_…abcdef"
 
 
 def test_feishu_http_error_keeps_actionable_upstream_details_and_redacts_secrets(monkeypatch):

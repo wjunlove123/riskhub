@@ -11,6 +11,7 @@ export interface User {
 
 export interface FeishuDirectoryStatus {
   configured: boolean;
+  app_id_hint: string;
   department_name: string;
   member_count: number;
   last_synced_at?: string;

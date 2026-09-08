@@ -197,6 +197,7 @@ def feishu_directory_status(_: AdminUser, session: Annotated[Session, Depends(ge
     members = session.scalars(select(DirectoryMember).where(DirectoryMember.provider == "feishu", DirectoryMember.active.is_(True))).all()
     return {
         "configured": settings.feishu_configured,
+        "app_id_hint": settings.feishu_app_id_hint,
         "department_name": settings.feishu_department_name,
         "member_count": len(members),
         "last_synced_at": max((item.last_synced_at for item in members), default=None),

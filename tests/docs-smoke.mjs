@@ -54,6 +54,7 @@ for (const platform of ["macOS / Linux", "Windows PowerShell"]) {
 assert.match(readme, /不要直接使用 `file:\/\//);
 assert.match(readme, /尚未作为默认运行依赖接入/);
 assert.match(readme, /飞书通讯录/);
+assert.match(readme, /系统环境变量的优先级高于 `.env`/);
 assert.match(envExample, /RISKHUB_FEISHU_DEPARTMENT_ID=od_your_sre_department_id/);
 assert.doesNotMatch(envExample, /od-a0ff0bcc4a5173877e9bd5db353bd8e0/);
 

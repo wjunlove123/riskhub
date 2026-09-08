@@ -4,6 +4,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 BASE_DIR = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 
 class Settings(BaseSettings):
@@ -23,7 +24,7 @@ class Settings(BaseSettings):
     feishu_api_base_url: str = "https://open.feishu.cn/open-apis"
     feishu_ca_bundle: str = ""
 
-    model_config = SettingsConfigDict(env_prefix="RISKHUB_", env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_prefix="RISKHUB_", env_file=PROJECT_ROOT / ".env", extra="ignore")
 
     @property
     def allowed_origins(self) -> list[str]:
@@ -32,6 +33,12 @@ class Settings(BaseSettings):
     @property
     def feishu_configured(self) -> bool:
         return bool(self.feishu_app_id and self.feishu_app_secret and self.feishu_department_id)
+
+    @property
+    def feishu_app_id_hint(self) -> str:
+        if not self.feishu_app_id:
+            return ""
+        return f"{self.feishu_app_id[:4]}…{self.feishu_app_id[-6:]}"
 
 
 settings = Settings()
