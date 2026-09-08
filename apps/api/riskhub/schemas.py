@@ -27,6 +27,20 @@ class UserPublic(ORMModel):
     roles: list[str]
 
 
+class FeishuDirectoryStatus(BaseModel):
+    configured: bool
+    department_name: str
+    member_count: int
+    last_synced_at: datetime | None = None
+
+
+class FeishuSyncResult(BaseModel):
+    created_count: int
+    updated_count: int
+    disabled_count: int
+    total_count: int
+
+
 class AssetPublic(ORMModel):
     id: str
     asset_code: str

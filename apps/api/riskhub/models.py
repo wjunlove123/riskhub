@@ -68,6 +68,22 @@ class User(TimestampMixin, Base):
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
+class DirectoryMember(TimestampMixin, Base):
+    __tablename__ = "directory_members"
+    __table_args__ = (UniqueConstraint("provider", "external_user_id", name="uq_directory_member_provider_user"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    provider: Mapped[str] = mapped_column(String(30), default="feishu", index=True)
+    external_user_id: Mapped[str] = mapped_column(String(160), index=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), unique=True, index=True)
+    department_id: Mapped[str] = mapped_column(String(160), index=True)
+    department_name: Mapped[str] = mapped_column(String(160), default="")
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    last_synced_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    user: Mapped[User] = relationship()
+
+
 class Asset(TimestampMixin, Base):
     __tablename__ = "assets"
 

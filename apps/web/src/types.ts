@@ -9,6 +9,20 @@ export interface User {
   roles: Role[];
 }
 
+export interface FeishuDirectoryStatus {
+  configured: boolean;
+  department_name: string;
+  member_count: number;
+  last_synced_at?: string;
+}
+
+export interface FeishuSyncResult {
+  created_count: number;
+  updated_count: number;
+  disabled_count: number;
+  total_count: number;
+}
+
 export interface Asset {
   id: string;
   asset_code: string;

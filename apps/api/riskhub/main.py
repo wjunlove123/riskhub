@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import secrets
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
@@ -27,6 +28,7 @@ from .models import (
     Asset,
     AuditEvent,
     BatchStatus,
+    DirectoryMember,
     Finding,
     FindingEvent,
     FindingStatus,
@@ -55,6 +57,8 @@ from .schemas import (
     FindingBulkDelete,
     FindingSummary,
     FindingUpdate,
+    FeishuDirectoryStatus,
+    FeishuSyncResult,
     GovernanceSettingPublic,
     GovernanceSettingUpdate,
     LoginRequest,
@@ -72,7 +76,8 @@ from .schemas import (
     UserPublic,
     VerificationCreate,
 )
-from .security import AdminUser, CurrentUser, authenticate, create_access_token
+from .feishu import FeishuAPIError, list_department_users, send_assignment_message
+from .security import AdminUser, CurrentUser, authenticate, create_access_token, hash_password
 from .seed import seed_database
 from .services import SEVERITY_PRIORITY, SEVERITY_SCORE, allowed_actions, audit, finding_event, ingest_records, transition_finding
 
@@ -181,6 +186,69 @@ def me(user: CurrentUser):
 @app.get("/api/v1/users", response_model=list[UserPublic])
 def users(_: AdminUser, session: Annotated[Session, Depends(get_session)]):
     return session.scalars(select(User).where(User.enabled.is_(True)).order_by(User.display_name)).all()
+
+
+@app.get("/api/v1/integrations/feishu", response_model=FeishuDirectoryStatus)
+def feishu_directory_status(_: AdminUser, session: Annotated[Session, Depends(get_session)]):
+    members = session.scalars(select(DirectoryMember).where(DirectoryMember.provider == "feishu", DirectoryMember.active.is_(True))).all()
+    return {
+        "configured": settings.feishu_configured,
+        "department_name": settings.feishu_department_name,
+        "member_count": len(members),
+        "last_synced_at": max((item.last_synced_at for item in members), default=None),
+    }
+
+
+@app.post("/api/v1/integrations/feishu/sync", response_model=FeishuSyncResult)
+def sync_feishu_directory(user: AdminUser, session: Annotated[Session, Depends(get_session)]):
+    try:
+        remote_users = list_department_users()
+    except FeishuAPIError as exc:
+        raise HTTPException(status_code=502, detail={"code": "FEISHU_SYNC_FAILED", "message": str(exc)}) from exc
+
+    existing = {item.external_user_id: item for item in session.scalars(select(DirectoryMember).where(DirectoryMember.provider == "feishu")).all()}
+    seen: set[str] = set()
+    created_count = updated_count = disabled_count = 0
+    synced_at = utcnow()
+    for remote in remote_users:
+        external_id = remote.get("open_id") or remote.get("user_id")
+        display_name = (remote.get("name") or "").strip()
+        if not external_id or not display_name:
+            continue
+        seen.add(external_id)
+        active = bool((remote.get("status") or {}).get("is_activated", True))
+        member = existing.get(external_id)
+        if member:
+            member.user.display_name = display_name
+            member.user.enabled = active
+            member.user.roles = [Role.REMEDIATOR.value, Role.VERIFIER.value]
+            member.department_id = settings.feishu_department_id
+            member.department_name = settings.feishu_department_name
+            member.active = active
+            member.last_synced_at = synced_at
+            updated_count += 1
+            continue
+        directory_user = User(
+            username=f"feishu_{external_id}"[:80],
+            display_name=display_name,
+            password_hash=hash_password(secrets.token_urlsafe(32)),
+            roles=[Role.REMEDIATOR.value, Role.VERIFIER.value],
+            enabled=active,
+        )
+        session.add(directory_user)
+        session.flush()
+        session.add(DirectoryMember(provider="feishu", external_user_id=external_id, user_id=directory_user.id, department_id=settings.feishu_department_id, department_name=settings.feishu_department_name, active=active, last_synced_at=synced_at))
+        created_count += 1
+    for external_id, member in existing.items():
+        if member.department_id == settings.feishu_department_id and external_id not in seen and member.active:
+            member.active = False
+            member.user.enabled = False
+            member.last_synced_at = synced_at
+            disabled_count += 1
+    total_count = created_count + updated_count
+    audit(session, user, "FEISHU_DIRECTORY_SYNCED", "directory", "feishu", after={"department": settings.feishu_department_name, "created": created_count, "updated": updated_count, "disabled": disabled_count})
+    session.commit()
+    return {"created_count": created_count, "updated_count": updated_count, "disabled_count": disabled_count, "total_count": total_count}
 
 
 @app.get("/api/v1/assets", response_model=list[AssetPublic])
@@ -542,6 +610,19 @@ def update_assignment(finding_id: str, payload: AssignmentUpdate, user: AdminUse
     finding.version += 1
     audit(session, user, "ASSIGNMENT_UPDATED", "finding", finding.id, before, {**payload.model_dump(mode="json"), "version": finding.version})
     finding_event(session, finding, "ASSIGNMENT_UPDATED", user, payload={"reason": payload.reason})
+    directory_member = session.scalar(select(DirectoryMember).where(DirectoryMember.user_id == payload.assignee_id, DirectoryMember.provider == "feishu", DirectoryMember.active.is_(True)))
+    if directory_member:
+        try:
+            send_assignment_message(
+                directory_member.external_user_id,
+                finding_id=finding.id,
+                finding_no=finding.finding_no,
+                title=finding.title,
+                severity=finding.severity.value,
+                due_at=payload.due_at.isoformat(),
+            )
+        except FeishuAPIError as exc:
+            raise HTTPException(status_code=502, detail={"code": "FEISHU_MESSAGE_FAILED", "message": str(exc)}) from exc
     session.commit()
     finding = get_accessible_finding(session, user, finding_id)
     return finding_public(finding, user, detail=True)

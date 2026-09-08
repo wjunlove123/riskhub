@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
-import { App, appThemeTokens, findingCountUnit, RiskTrendChart, riskTrendData, SeverityPie } from "./App";
+import { App, appThemeTokens, FeishuDirectoryCard, findingCountUnit, RiskTrendChart, riskTrendData, SeverityPie } from "./App";
 import { api, deleteFindings, findingQuery } from "./api";
 
 function LocationProbe() {
@@ -68,5 +68,13 @@ describe("RiskHub application", () => {
     expect(fetchMock.mock.calls[1][0]).toContain("/api/v1/findings/bulk-delete");
     expect(fetchMock.mock.calls[1][1]).toMatchObject({ method: "POST", body: JSON.stringify({ ids: ["finding-1", "finding-2"] }) });
     vi.unstubAllGlobals();
+  });
+
+  it("shows Feishu directory sync state and lets admins trigger a sync", () => {
+    const onSync = vi.fn();
+    render(<FeishuDirectoryCard status={{ configured: true, department_name: "SRE", member_count: 12 }} onSync={onSync} />);
+    expect(screen.getByText("SRE 部门 · 12 位成员")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /同步通讯录/ }));
+    expect(onSync).toHaveBeenCalledOnce();
   });
 });

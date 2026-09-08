@@ -42,6 +42,7 @@ RiskHub 将不同来源发现的原始问题保存为 `Observation`，经过标�
 - 资产中心展示资产编码、类型、团队、Owner、重要性和暴露面。
 - 平台管理员可以编辑资产名称、类型、业务系统、团队、Owner、重要性、暴露面、环境和状态；资产编码创建后不可修改。
 - 接入中心支持保存来源名称、接入方式、适配器类型、启停状态和字段映射定义。
+- 接入中心支持同步飞书通讯录中的 SRE 部门成员，并在风险分派后发送飞书应用消息。
 - 治理配置支持保存等级映射、去重规则、SLA、自动分派、通知规则和风险接受规则。
 - 所有资产、来源和治理规则修改都会记录审计日志。
 
@@ -93,16 +94,27 @@ npm install --prefix apps/web
 
 后端配置使用 `RISKHUB_` 前缀，可在项目根目录的 `.env` 中覆盖：
 
+可先复制 `.env.example` 为 `.env`，再填写实际配置：
+
 ```dotenv
 RISKHUB_DATABASE_URL=sqlite:///apps/api/riskhub.db
 RISKHUB_JWT_SECRET=replace-with-a-long-random-secret
 RISKHUB_ACCESS_TOKEN_MINUTES=60
 RISKHUB_CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+RISKHUB_FEISHU_APP_ID=cli_your_app_id
+RISKHUB_FEISHU_APP_SECRET=replace-with-your-app-secret
+RISKHUB_FEISHU_DEPARTMENT_ID=od_your_sre_department_id
+RISKHUB_FEISHU_DEPARTMENT_NAME=SRE
+RISKHUB_FEISHU_RISK_BASE_URL=https://your-accessible-riskhub.example.com
 ```
 
-生产部署前必须替换 JWT 密钥。当前仓库实现的是本地可运行 MVP；技术方案中规划的 PostgreSQL、Redis、对象存储和异步 Worker 尚未作为默认运行依赖接入。
+生产部署前必须替换 JWT 密钥。飞书 `App Secret` 只能保存在本地 `.env` 或密钥管理系统中，不要提交到仓库。`RISKHUB_FEISHU_RISK_BASE_URL` 应填写接收人能够访问的 RiskHub 或 Dify 入口；如果系统只在本机运行，请不要填写本地回环地址。
 
-当前 MVP 中，来源字段映射和治理规则已经支持界面配置、数据库持久化和审计，但导入解析、去重及 SLA 计算仍使用代码中的内置规则；站内提醒按钮和报表趋势为演示数据，尚未实现真实通知投递及历史趋势聚合。
+飞书接入使用企业自建应用，需要在飞书开放平台授予应用读取 SRE 部门成员和发送应用消息的权限，并确保该部门位于应用通讯录可见范围内。配置完成后，平台管理员可在“接入中心”同步通讯录。同步成员会作为整改人员和验证人员出现在风险分派选项中；分派给飞书成员后，系统会发送包含风险编号、等级、标题、截止时间和处理入口的消息。
+
+当前仓库实现的是本地可运行 MVP；技术方案中规划的 PostgreSQL、Redis、对象存储和异步 Worker 尚未作为默认运行依赖接入。
+
+当前 MVP 中，来源字段映射和治理规则已经支持界面配置、数据库持久化和审计，但导入解析、去重及 SLA 计算仍使用代码中的内置规则；飞书风险分派消息已支持真实投递，站内提醒按钮和报表趋势仍为演示数据，尚未实现历史趋势聚合。
 
 ## 4. 使用方法
 

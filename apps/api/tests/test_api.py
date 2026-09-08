@@ -37,6 +37,48 @@ def test_role_scoped_access_and_admin_only_endpoint(client, admin_headers, remed
     assert response.status_code == 403
 
 
+def test_admin_syncs_feishu_directory_and_dispatches_risk(client, admin_headers, remediator_headers, monkeypatch):
+    from riskhub import main
+
+    monkeypatch.setattr(main.settings, "feishu_app_id", "test-app")
+    monkeypatch.setattr(main.settings, "feishu_app_secret", "test-secret")
+    monkeypatch.setattr(main.settings, "feishu_department_id", "od-test-sre")
+    monkeypatch.setattr(main.settings, "feishu_department_name", "SRE")
+    monkeypatch.setattr(main, "list_department_users", lambda: [
+        {"open_id": "ou-sre-1", "name": "飞书整改人员", "status": {"is_activated": True}},
+        {"open_id": "ou-sre-2", "name": "飞书验证人员", "status": {"is_activated": True}},
+    ])
+    sent_messages = []
+    monkeypatch.setattr(main, "send_assignment_message", lambda open_id, **payload: sent_messages.append((open_id, payload)))
+
+    assert client.post("/api/v1/integrations/feishu/sync", headers=remediator_headers).status_code == 403
+    synced = client.post("/api/v1/integrations/feishu/sync", headers=admin_headers)
+    assert synced.status_code == 200, synced.text
+    assert synced.json() == {"created_count": 2, "updated_count": 0, "disabled_count": 0, "total_count": 2}
+    status = client.get("/api/v1/integrations/feishu", headers=admin_headers).json()
+    assert status["configured"] is True
+    assert status["department_name"] == "SRE"
+    assert status["member_count"] == 2
+
+    users = client.get("/api/v1/users", headers=admin_headers).json()
+    assignee = next(item for item in users if item["display_name"] == "飞书整改人员")
+    verifier = next(item for item in users if item["username"] == "verifier")
+    admin = next(item for item in users if item["username"] == "admin")
+    finding = first_with_status(client, admin_headers, "pending_confirmation")
+    assigned = client.patch(
+        f"/api/v1/findings/{finding['id']}/assignment",
+        headers=admin_headers,
+        json={
+            "owner_id": admin["id"], "assignee_id": assignee["id"], "verifier_id": verifier["id"],
+            "due_at": (datetime.now(timezone.utc) + timedelta(days=3)).isoformat(),
+            "reason": "派发给 SRE", "version": finding["version"],
+        },
+    )
+    assert assigned.status_code == 200, assigned.text
+    assert sent_messages[0][0] == "ou-sre-1"
+    assert sent_messages[0][1]["finding_id"] == finding["id"]
+
+
 def test_admin_can_edit_and_delete_finding(client, admin_headers, remediator_headers):
     source = client.get("/api/v1/sources", headers=admin_headers).json()[0]
     created_batch = client.post(

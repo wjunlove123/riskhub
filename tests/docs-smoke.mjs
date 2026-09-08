@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 
 const technicalDesign = await readFile(new URL("../docs/TECHNICAL_DESIGN.md", import.meta.url), "utf8");
 const readme = await readFile(new URL("../README.md", import.meta.url), "utf8");
+const envExample = await readFile(new URL("../.env.example", import.meta.url), "utf8");
 
 const requiredSections = [
   "总体架构",
@@ -52,5 +53,8 @@ for (const platform of ["macOS / Linux", "Windows PowerShell"]) {
 
 assert.match(readme, /不要直接使用 `file:\/\//);
 assert.match(readme, /尚未作为默认运行依赖接入/);
+assert.match(readme, /飞书通讯录/);
+assert.match(envExample, /RISKHUB_FEISHU_DEPARTMENT_ID=od_your_sre_department_id/);
+assert.doesNotMatch(envExample, /od-a0ff0bcc4a5173877e9bd5db353bd8e0/);
 
 console.log("Technical design and README checks passed.");
