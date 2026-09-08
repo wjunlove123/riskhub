@@ -72,9 +72,10 @@ describe("RiskHub application", () => {
 
   it("shows Feishu directory sync state and lets admins trigger a sync", () => {
     const onSync = vi.fn();
-    render(<FeishuDirectoryCard status={{ configured: true, app_id_hint: "cli_…123456", department_name: "SRE", department_count: 2, member_count: 12 }} onSync={onSync} />);
+    render(<FeishuDirectoryCard status={{ configured: true, proxy_configured: true, app_id_hint: "cli_…123456", department_name: "SRE", department_count: 2, member_count: 12 }} onSync={onSync} />);
     expect(screen.getByText("SRE 等 2 个部门 · 12 位成员")).toBeInTheDocument();
     expect(screen.getByText("当前应用：cli_…123456")).toBeInTheDocument();
+    expect(screen.getByText("网络代理：已配置")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /同步通讯录/ }));
     expect(onSync).toHaveBeenCalledOnce();
   });

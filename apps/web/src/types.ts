@@ -11,6 +11,7 @@ export interface User {
 
 export interface FeishuDirectoryStatus {
   configured: boolean;
+  proxy_configured: boolean;
   app_id_hint: string;
   department_name: string;
   department_count: number;

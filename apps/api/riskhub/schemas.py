@@ -29,6 +29,7 @@ class UserPublic(ORMModel):
 
 class FeishuDirectoryStatus(BaseModel):
     configured: bool
+    proxy_configured: bool
     app_id_hint: str
     department_name: str
     department_count: int

@@ -43,7 +43,9 @@ def test_admin_syncs_feishu_directory_and_dispatches_risk(client, admin_headers,
     monkeypatch.setattr(main.settings, "feishu_app_id", "test-app")
     monkeypatch.setattr(main.settings, "feishu_app_secret", "test-secret")
     monkeypatch.setattr(main.settings, "feishu_department_id", "od-test-sre")
+    monkeypatch.setattr(main.settings, "feishu_department_ids", "")
     monkeypatch.setattr(main.settings, "feishu_department_name", "SRE")
+    monkeypatch.setattr(main.settings, "feishu_https_proxy", "http://proxy.internal:8080")
     monkeypatch.setattr(main, "list_department_users", lambda: [
         {"open_id": "ou-sre-1", "name": "飞书整改人员", "status": {"is_activated": True}},
         {"open_id": "ou-sre-2", "name": "飞书验证人员", "status": {"is_activated": True}},
@@ -57,6 +59,7 @@ def test_admin_syncs_feishu_directory_and_dispatches_risk(client, admin_headers,
     assert synced.json() == {"created_count": 2, "updated_count": 0, "disabled_count": 0, "total_count": 2}
     status = client.get("/api/v1/integrations/feishu", headers=admin_headers).json()
     assert status["configured"] is True
+    assert status["proxy_configured"] is True
     assert status["app_id_hint"] == "test…st-app"
     assert status["department_name"] == "SRE"
     assert status["department_count"] == 1

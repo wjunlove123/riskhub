@@ -197,6 +197,7 @@ def feishu_directory_status(_: AdminUser, session: Annotated[Session, Depends(ge
     members = session.scalars(select(DirectoryMember).where(DirectoryMember.provider == "feishu", DirectoryMember.active.is_(True))).all()
     return {
         "configured": settings.feishu_configured,
+        "proxy_configured": bool(settings.feishu_https_proxy),
         "app_id_hint": settings.feishu_app_id_hint,
         "department_name": settings.feishu_department_name,
         "department_count": len(settings.configured_feishu_department_ids),

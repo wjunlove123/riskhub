@@ -8,6 +8,17 @@ from riskhub import feishu
 from riskhub.config import PROJECT_ROOT, Settings
 
 
+class FakeResponse:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_args):
+        return None
+
+    def read(self):
+        return b'{"code": 0, "data": {}}'
+
+
 def test_settings_load_dotenv_from_project_root_independent_of_working_directory():
     assert Settings.model_config["env_file"] == PROJECT_ROOT / ".env"
     assert Settings.model_config["env_file"].is_absolute()
@@ -48,6 +59,28 @@ def test_multiple_department_ids_are_deduplicated_and_members_are_merged(monkeyp
 def test_feishu_app_id_hint_is_safe_for_diagnostics(monkeypatch):
     monkeypatch.setattr(feishu.settings, "feishu_app_id", "cli_1234567890abcdef")
     assert feishu.settings.feishu_app_id_hint == "cli_…abcdef"
+
+
+def test_feishu_uses_explicit_https_proxy_and_redacts_credentials(monkeypatch):
+    proxy_url = "http://proxy-user:proxy-password@proxy.internal:8080"
+    monkeypatch.setattr(feishu.settings, "feishu_https_proxy", proxy_url)
+    handlers = []
+
+    class FakeOpener:
+        def open(self, _request, timeout):
+            assert timeout == 15
+            return FakeResponse()
+
+    def build(*items):
+        handlers.extend(items)
+        return FakeOpener()
+
+    monkeypatch.setattr(feishu, "build_opener", build)
+    result = feishu._request("GET", "/test", operation="测试代理")
+
+    assert result["code"] == 0
+    assert handlers[0].proxies["https"] == proxy_url
+    assert "proxy-password" not in feishu._redact(f"failed through {proxy_url} proxy-password")
 
 
 def test_feishu_http_error_keeps_actionable_upstream_details_and_redacts_secrets(monkeypatch):

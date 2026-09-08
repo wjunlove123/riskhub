@@ -4,8 +4,8 @@ import json
 import ssl
 from typing import Any
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode
-from urllib.request import Request, urlopen
+from urllib.parse import unquote, urlencode, urlsplit
+from urllib.request import HTTPSHandler, ProxyHandler, Request, build_opener, urlopen
 
 from .config import settings
 
@@ -15,7 +15,14 @@ class FeishuAPIError(RuntimeError):
 
 
 def _redact(value: str) -> str:
-    for secret in (settings.feishu_app_id, settings.feishu_app_secret):
+    proxy = urlsplit(settings.feishu_https_proxy) if settings.feishu_https_proxy else None
+    for secret in (
+        settings.feishu_app_id,
+        settings.feishu_app_secret,
+        settings.feishu_https_proxy,
+        unquote(proxy.username or "") if proxy else "",
+        unquote(proxy.password or "") if proxy else "",
+    ):
         if secret:
             value = value.replace(secret, "***")
     return value[:500]
@@ -37,6 +44,14 @@ def _http_error_message(operation: str, error: HTTPError) -> str:
     return f"{operation}失败（{'，'.join(details)}）"
 
 
+def _open_request(request: Request, context: ssl.SSLContext):
+    if not settings.feishu_https_proxy:
+        return urlopen(request, timeout=15, context=context)
+    proxy_handler = ProxyHandler({"http": settings.feishu_https_proxy, "https": settings.feishu_https_proxy})
+    opener = build_opener(proxy_handler, HTTPSHandler(context=context))
+    return opener.open(request, timeout=15)
+
+
 def _request(method: str, path: str, *, operation: str, token: str | None = None, payload: dict[str, Any] | None = None) -> dict[str, Any]:
     headers = {"Content-Type": "application/json; charset=utf-8"}
     if token:
@@ -49,7 +64,7 @@ def _request(method: str, path: str, *, operation: str, token: str | None = None
     )
     try:
         context = ssl.create_default_context(cafile=settings.feishu_ca_bundle or None)
-        with urlopen(request, timeout=15, context=context) as response:
+        with _open_request(request, context) as response:
             raw_body = response.read().decode()
     except HTTPError as exc:
         raise FeishuAPIError(_http_error_message(operation, exc)) from exc

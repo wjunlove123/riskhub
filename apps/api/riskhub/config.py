@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     feishu_risk_base_url: str = ""
     feishu_api_base_url: str = "https://open.feishu.cn/open-apis"
     feishu_ca_bundle: str = ""
+    feishu_https_proxy: str = ""
 
     model_config = SettingsConfigDict(env_prefix="RISKHUB_", env_file=PROJECT_ROOT / ".env", extra="ignore")
 

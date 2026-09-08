@@ -108,6 +108,7 @@ RISKHUB_FEISHU_DEPARTMENT_IDS=
 RISKHUB_FEISHU_DEPARTMENT_NAME=SRE
 RISKHUB_FEISHU_RISK_BASE_URL=https://your-accessible-riskhub.example.com
 RISKHUB_FEISHU_CA_BUNDLE=
+RISKHUB_FEISHU_HTTPS_PROXY=
 ```
 
 生产部署前必须替换 JWT 密钥。飞书 `App Secret` 只能保存在本地 `.env` 或密钥管理系统中，不要提交到仓库。`RISKHUB_FEISHU_RISK_BASE_URL` 应填写接收人能够访问的 RiskHub 或 Dify 入口；如果系统只在本机运行，请不要填写本地回环地址。
@@ -127,6 +128,14 @@ RISKHUB_FEISHU_DEPARTMENT_IDS=od_first_department,od_second_department,od_third_
 - “获取租户令牌失败”：检查 App ID、App Secret 是否完整且没有多余的引号或转义符，并确认应用已经发布。
 - “读取 SRE 部门通讯录失败”：检查通讯录权限、应用可见范围和部门 ID；部门 ID 应使用 `open_department_id`。
 - “无法连接飞书”或“网络或证书错误”：检查目标电脑能否访问 `https://open.feishu.cn`、系统时间、HTTPS 代理和企业 CA。使用企业自签 CA 时，将 PEM 证书链路径配置到 `RISKHUB_FEISHU_CA_BUNDLE`。
+
+公司电脑需要通过 HTTP(S) 企业代理访问公网时，在 `.env` 中配置：
+
+```dotenv
+RISKHUB_FEISHU_HTTPS_PROXY=http://proxy.company.internal:8080
+```
+
+如果代理需要 Basic 用户名和密码，请先对用户名、密码中的 `@`、`:`、`/` 等特殊字符进行 URL 编码，再使用 `http://username:password@proxy.company.internal:8080`。该配置只作用于飞书请求，不会让 RiskHub 的其他网络请求经过代理。代理必须支持 HTTPS CONNECT；SOCKS 代理当前不支持。接入中心会显示“网络代理：已配置”，错误日志会自动遮蔽完整代理地址和代理凭据。
 
 修改 `.env` 后必须重启后端服务。错误信息会保留飞书 HTTP 状态和错误码，但会自动隐藏 App ID 与 App Secret。
 
