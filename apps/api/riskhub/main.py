@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import io
 import json
+import logging
 import secrets
 import uuid
 from contextlib import asynccontextmanager
@@ -80,6 +81,9 @@ from .feishu import FeishuAPIError, list_department_users, send_assignment_messa
 from .security import AdminUser, CurrentUser, authenticate, create_access_token, hash_password
 from .seed import seed_database
 from .services import SEVERITY_PRIORITY, SEVERITY_SCORE, allowed_actions, audit, finding_event, ingest_records, transition_finding
+
+
+logger = logging.getLogger(__name__)
 
 
 DEFAULT_GOVERNANCE_SETTINGS = {
@@ -204,6 +208,7 @@ def sync_feishu_directory(user: AdminUser, session: Annotated[Session, Depends(g
     try:
         remote_users = list_department_users()
     except FeishuAPIError as exc:
+        logger.warning("Feishu directory sync failed: %s", exc)
         raise HTTPException(status_code=502, detail={"code": "FEISHU_SYNC_FAILED", "message": str(exc)}) from exc
 
     existing = {item.external_user_id: item for item in session.scalars(select(DirectoryMember).where(DirectoryMember.provider == "feishu")).all()}
@@ -622,6 +627,7 @@ def update_assignment(finding_id: str, payload: AssignmentUpdate, user: AdminUse
                 due_at=payload.due_at.isoformat(),
             )
         except FeishuAPIError as exc:
+            logger.warning("Feishu assignment message failed: %s", exc)
             raise HTTPException(status_code=502, detail={"code": "FEISHU_MESSAGE_FAILED", "message": str(exc)}) from exc
     session.commit()
     finding = get_accessible_finding(session, user, finding_id)

@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     feishu_department_id: str = ""
     feishu_department_name: str = "SRE"
     feishu_risk_base_url: str = ""
+    feishu_api_base_url: str = "https://open.feishu.cn/open-apis"
+    feishu_ca_bundle: str = ""
 
     model_config = SettingsConfigDict(env_prefix="RISKHUB_", env_file=".env", extra="ignore")
 

@@ -106,11 +106,20 @@ RISKHUB_FEISHU_APP_SECRET=replace-with-your-app-secret
 RISKHUB_FEISHU_DEPARTMENT_ID=od_your_sre_department_id
 RISKHUB_FEISHU_DEPARTMENT_NAME=SRE
 RISKHUB_FEISHU_RISK_BASE_URL=https://your-accessible-riskhub.example.com
+RISKHUB_FEISHU_CA_BUNDLE=
 ```
 
 生产部署前必须替换 JWT 密钥。飞书 `App Secret` 只能保存在本地 `.env` 或密钥管理系统中，不要提交到仓库。`RISKHUB_FEISHU_RISK_BASE_URL` 应填写接收人能够访问的 RiskHub 或 Dify 入口；如果系统只在本机运行，请不要填写本地回环地址。
 
 飞书接入使用企业自建应用，需要在飞书开放平台授予应用读取 SRE 部门成员和发送应用消息的权限，并确保该部门位于应用通讯录可见范围内。配置完成后，平台管理员可在“接入中心”同步通讯录。同步成员会作为整改人员和验证人员出现在风险分派选项中；分派给飞书成员后，系统会发送包含风险编号、等级、标题、截止时间和处理入口的消息。
+
+如果同步返回 `502 Bad Gateway`，请根据页面或 API 日志中显示的具体阶段排查：
+
+- “获取租户令牌失败”：检查 App ID、App Secret 是否完整且没有多余的引号或转义符，并确认应用已经发布。
+- “读取 SRE 部门通讯录失败”：检查通讯录权限、应用可见范围和部门 ID；部门 ID 应使用 `open_department_id`。
+- “无法连接飞书”或“网络或证书错误”：检查目标电脑能否访问 `https://open.feishu.cn`、系统时间、HTTPS 代理和企业 CA。使用企业自签 CA 时，将 PEM 证书链路径配置到 `RISKHUB_FEISHU_CA_BUNDLE`。
+
+修改 `.env` 后必须重启后端服务。错误信息会保留飞书 HTTP 状态和错误码，但会自动隐藏 App ID 与 App Secret。
 
 当前仓库实现的是本地可运行 MVP；技术方案中规划的 PostgreSQL、Redis、对象存储和异步 Worker 尚未作为默认运行依赖接入。
 
