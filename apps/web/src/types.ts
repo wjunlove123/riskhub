@@ -13,6 +13,7 @@ export interface FeishuDirectoryStatus {
   configured: boolean;
   app_id_hint: string;
   department_name: string;
+  department_count: number;
   member_count: number;
   last_synced_at?: string;
 }

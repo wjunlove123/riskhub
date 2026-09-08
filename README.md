@@ -104,6 +104,7 @@ RISKHUB_CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
 RISKHUB_FEISHU_APP_ID=cli_your_app_id
 RISKHUB_FEISHU_APP_SECRET=replace-with-your-app-secret
 RISKHUB_FEISHU_DEPARTMENT_ID=od_your_sre_department_id
+RISKHUB_FEISHU_DEPARTMENT_IDS=
 RISKHUB_FEISHU_DEPARTMENT_NAME=SRE
 RISKHUB_FEISHU_RISK_BASE_URL=https://your-accessible-riskhub.example.com
 RISKHUB_FEISHU_CA_BUNDLE=
@@ -112,6 +113,14 @@ RISKHUB_FEISHU_CA_BUNDLE=
 生产部署前必须替换 JWT 密钥。飞书 `App Secret` 只能保存在本地 `.env` 或密钥管理系统中，不要提交到仓库。`RISKHUB_FEISHU_RISK_BASE_URL` 应填写接收人能够访问的 RiskHub 或 Dify 入口；如果系统只在本机运行，请不要填写本地回环地址。
 
 飞书接入使用企业自建应用，需要在飞书开放平台授予应用读取 SRE 部门成员和发送应用消息的权限，并确保该部门位于应用通讯录可见范围内。配置完成后，平台管理员可在“接入中心”同步通讯录。同步成员会作为整改人员和验证人员出现在风险分派选项中；分派给飞书成员后，系统会发送包含风险编号、等级、标题、截止时间和处理入口的消息。
+
+同步多个部门时，将多个 `open_department_id` 使用英文逗号写入 `RISKHUB_FEISHU_DEPARTMENT_IDS`：
+
+```dotenv
+RISKHUB_FEISHU_DEPARTMENT_IDS=od_first_department,od_second_department,od_third_department
+```
+
+配置 `RISKHUB_FEISHU_DEPARTMENT_IDS` 后，它会优先于单部门变量 `RISKHUB_FEISHU_DEPARTMENT_ID`。系统逐部门分页同步，并按成员 `open_id` 合并去重。每个部门都必须加入飞书应用的通讯录权限范围；该接口只返回部门直属成员，如需同步下级部门，需要把每个下级部门 ID 也加入列表。
 
 如果同步返回 `502 Bad Gateway`，请根据页面或 API 日志中显示的具体阶段排查：
 

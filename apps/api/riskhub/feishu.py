@@ -82,26 +82,30 @@ def list_department_users() -> list[dict[str, Any]]:
     if not settings.feishu_configured:
         raise FeishuAPIError("飞书通讯录尚未配置")
     token = tenant_access_token()
-    users: list[dict[str, Any]] = []
-    page_token = ""
-    while True:
-        query = {
-            "department_id": settings.feishu_department_id,
-            "department_id_type": "open_department_id",
-            "user_id_type": "open_id",
-            "page_size": 50,
-        }
-        if page_token:
-            query["page_token"] = page_token
-        result = _request("GET", f"/contact/v3/users/find_by_department?{urlencode(query)}", operation="读取 SRE 部门通讯录", token=token)
-        data = result.get("data") or {}
-        users.extend(data.get("items") or [])
-        if not data.get("has_more"):
-            break
-        page_token = data.get("page_token") or ""
-        if not page_token:
-            break
-    return users
+    users_by_id: dict[str, dict[str, Any]] = {}
+    for department_id in settings.configured_feishu_department_ids:
+        page_token = ""
+        while True:
+            query = {
+                "department_id": department_id,
+                "department_id_type": "open_department_id",
+                "user_id_type": "open_id",
+                "page_size": 50,
+            }
+            if page_token:
+                query["page_token"] = page_token
+            result = _request("GET", f"/contact/v3/users/find_by_department?{urlencode(query)}", operation="读取飞书部门通讯录", token=token)
+            data = result.get("data") or {}
+            for item in data.get("items") or []:
+                external_id = item.get("open_id") or item.get("user_id")
+                if external_id and external_id not in users_by_id:
+                    users_by_id[external_id] = {**item, "_riskhub_department_id": department_id}
+            if not data.get("has_more"):
+                break
+            page_token = data.get("page_token") or ""
+            if not page_token:
+                break
+    return list(users_by_id.values())
 
 
 def send_assignment_message(open_id: str, *, finding_id: str, finding_no: str, title: str, severity: str, due_at: str) -> None:

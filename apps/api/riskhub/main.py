@@ -199,6 +199,7 @@ def feishu_directory_status(_: AdminUser, session: Annotated[Session, Depends(ge
         "configured": settings.feishu_configured,
         "app_id_hint": settings.feishu_app_id_hint,
         "department_name": settings.feishu_department_name,
+        "department_count": len(settings.configured_feishu_department_ids),
         "member_count": len(members),
         "last_synced_at": max((item.last_synced_at for item in members), default=None),
     }
@@ -223,12 +224,13 @@ def sync_feishu_directory(user: AdminUser, session: Annotated[Session, Depends(g
             continue
         seen.add(external_id)
         active = bool((remote.get("status") or {}).get("is_activated", True))
+        department_id = remote.get("_riskhub_department_id") or settings.configured_feishu_department_ids[0]
         member = existing.get(external_id)
         if member:
             member.user.display_name = display_name
             member.user.enabled = active
             member.user.roles = [Role.REMEDIATOR.value, Role.VERIFIER.value]
-            member.department_id = settings.feishu_department_id
+            member.department_id = department_id
             member.department_name = settings.feishu_department_name
             member.active = active
             member.last_synced_at = synced_at
@@ -243,10 +245,10 @@ def sync_feishu_directory(user: AdminUser, session: Annotated[Session, Depends(g
         )
         session.add(directory_user)
         session.flush()
-        session.add(DirectoryMember(provider="feishu", external_user_id=external_id, user_id=directory_user.id, department_id=settings.feishu_department_id, department_name=settings.feishu_department_name, active=active, last_synced_at=synced_at))
+        session.add(DirectoryMember(provider="feishu", external_user_id=external_id, user_id=directory_user.id, department_id=department_id, department_name=settings.feishu_department_name, active=active, last_synced_at=synced_at))
         created_count += 1
     for external_id, member in existing.items():
-        if member.department_id == settings.feishu_department_id and external_id not in seen and member.active:
+        if member.department_id in settings.configured_feishu_department_ids and external_id not in seen and member.active:
             member.active = False
             member.user.enabled = False
             member.last_synced_at = synced_at

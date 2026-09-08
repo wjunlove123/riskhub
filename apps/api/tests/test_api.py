@@ -59,6 +59,7 @@ def test_admin_syncs_feishu_directory_and_dispatches_risk(client, admin_headers,
     assert status["configured"] is True
     assert status["app_id_hint"] == "test…st-app"
     assert status["department_name"] == "SRE"
+    assert status["department_count"] == 1
     assert status["member_count"] == 2
 
     users = client.get("/api/v1/users", headers=admin_headers).json()

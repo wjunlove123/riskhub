@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     feishu_app_id: str = ""
     feishu_app_secret: str = ""
     feishu_department_id: str = ""
+    feishu_department_ids: str = ""
     feishu_department_name: str = "SRE"
     feishu_risk_base_url: str = ""
     feishu_api_base_url: str = "https://open.feishu.cn/open-apis"
@@ -44,7 +45,12 @@ class Settings(BaseSettings):
 
     @property
     def feishu_configured(self) -> bool:
-        return bool(self.feishu_app_id and self.feishu_app_secret and self.feishu_department_id)
+        return bool(self.feishu_app_id and self.feishu_app_secret and self.configured_feishu_department_ids)
+
+    @property
+    def configured_feishu_department_ids(self) -> list[str]:
+        raw = self.feishu_department_ids or self.feishu_department_id
+        return list(dict.fromkeys(item.strip() for item in raw.split(",") if item.strip()))
 
     @property
     def feishu_app_id_hint(self) -> str:

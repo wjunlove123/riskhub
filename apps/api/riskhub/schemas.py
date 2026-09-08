@@ -31,6 +31,7 @@ class FeishuDirectoryStatus(BaseModel):
     configured: bool
     app_id_hint: str
     department_name: str
+    department_count: int
     member_count: int
     last_synced_at: datetime | None = None
 

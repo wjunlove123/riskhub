@@ -23,6 +23,28 @@ def test_project_dotenv_overrides_stale_system_environment(monkeypatch, tmp_path
     assert loaded.feishu_app_id == "cli_new_application"
 
 
+def test_multiple_department_ids_are_deduplicated_and_members_are_merged(monkeypatch):
+    monkeypatch.setattr(feishu.settings, "feishu_app_id", "test-app")
+    monkeypatch.setattr(feishu.settings, "feishu_app_secret", "test-secret")
+    monkeypatch.setattr(feishu.settings, "feishu_department_id", "od-legacy")
+    monkeypatch.setattr(feishu.settings, "feishu_department_ids", "od-a, od-b,od-a")
+    monkeypatch.setattr(feishu, "tenant_access_token", lambda: "token")
+    requested_paths = []
+
+    def request(_method, path, **_kwargs):
+        requested_paths.append(path)
+        if "department_id=od-a" in path:
+            return {"data": {"items": [{"open_id": "ou-1", "name": "A"}, {"open_id": "ou-shared", "name": "Shared"}], "has_more": False}}
+        return {"data": {"items": [{"open_id": "ou-shared", "name": "Shared"}, {"open_id": "ou-2", "name": "B"}], "has_more": False}}
+
+    monkeypatch.setattr(feishu, "_request", request)
+    users = feishu.list_department_users()
+
+    assert feishu.settings.configured_feishu_department_ids == ["od-a", "od-b"]
+    assert {item["open_id"] for item in users} == {"ou-1", "ou-shared", "ou-2"}
+    assert len(requested_paths) == 2
+
+
 def test_feishu_app_id_hint_is_safe_for_diagnostics(monkeypatch):
     monkeypatch.setattr(feishu.settings, "feishu_app_id", "cli_1234567890abcdef")
     assert feishu.settings.feishu_app_id_hint == "cli_…abcdef"
