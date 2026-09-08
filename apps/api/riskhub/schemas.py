@@ -205,6 +205,10 @@ class FindingUpdate(BaseModel):
     reason: str = Field(min_length=2, max_length=500)
 
 
+class FindingBulkDelete(BaseModel):
+    ids: list[str] = Field(min_length=1, max_length=100)
+
+
 class Page(BaseModel):
     items: list[Any]
     total: int

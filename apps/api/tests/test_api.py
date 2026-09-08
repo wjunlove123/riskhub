@@ -74,6 +74,27 @@ def test_admin_can_edit_and_delete_finding(client, admin_headers, remediator_hea
     assert {"FINDING_UPDATED", "FINDING_DELETED"}.issubset(actions)
 
 
+def test_findings_pagination_and_admin_bulk_delete(client, admin_headers, remediator_headers):
+    first_page = client.get("/api/v1/findings?page=1&page_size=2", headers=admin_headers)
+    second_page = client.get("/api/v1/findings?page=2&page_size=2", headers=admin_headers)
+    assert first_page.status_code == 200
+    assert second_page.status_code == 200
+    assert first_page.json()["page"] == 1
+    assert second_page.json()["page"] == 2
+    assert first_page.json()["page_size"] == 2
+    first_ids = [item["id"] for item in first_page.json()["items"]]
+    second_ids = [item["id"] for item in second_page.json()["items"]]
+    assert len(first_ids) == 2
+    assert set(first_ids).isdisjoint(second_ids)
+
+    assert client.post("/api/v1/findings/bulk-delete", headers=remediator_headers, json={"ids": first_ids}).status_code == 403
+    deleted = client.post("/api/v1/findings/bulk-delete", headers=admin_headers, json={"ids": first_ids})
+    assert deleted.status_code == 200, deleted.text
+    assert deleted.json() == {"deleted_count": 2}
+    remaining_ids = {item["id"] for item in client.get("/api/v1/findings?page_size=100", headers=admin_headers).json()["items"]}
+    assert not remaining_ids.intersection(first_ids)
+
+
 def test_admin_can_edit_assets_and_source_configuration(client, admin_headers, remediator_headers):
     asset = client.get("/api/v1/assets", headers=admin_headers).json()[0]
     updated_asset = client.patch(

@@ -3,7 +3,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { App, appThemeTokens, findingCountUnit, RiskTrendChart, riskTrendData, SeverityPie } from "./App";
-import { api } from "./api";
+import { api, deleteFindings, findingQuery } from "./api";
 
 function LocationProbe() {
   return <span data-testid="location">{useLocation().pathname}{useLocation().search}</span>;
@@ -52,6 +52,21 @@ describe("RiskHub application", () => {
   it("accepts an empty response after deleting a finding", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 204 })));
     await expect(api<void>("/api/v1/findings/example", { method: "DELETE" })).resolves.toBeUndefined();
+    vi.unstubAllGlobals();
+  });
+
+  it("passes pagination to the findings API and supports bulk deletion", async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ items: [], total: 42, page: 2, page_size: 10 }), { headers: { "Content-Type": "application/json" } }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ deleted_count: 2 }), { headers: { "Content-Type": "application/json" } }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await findingQuery({ severity: "high", page: 2, pageSize: 10 });
+    expect(fetchMock.mock.calls[0][0]).toContain("/api/v1/findings?severity=high&page=2&page_size=10");
+
+    await expect(deleteFindings(["finding-1", "finding-2"])).resolves.toEqual({ deleted_count: 2 });
+    expect(fetchMock.mock.calls[1][0]).toContain("/api/v1/findings/bulk-delete");
+    expect(fetchMock.mock.calls[1][1]).toMatchObject({ method: "POST", body: JSON.stringify({ ids: ["finding-1", "finding-2"] }) });
     vi.unstubAllGlobals();
   });
 });

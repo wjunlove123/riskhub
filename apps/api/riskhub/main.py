@@ -52,6 +52,7 @@ from .schemas import (
     BatchPublic,
     EventPublic,
     FindingDetail,
+    FindingBulkDelete,
     FindingSummary,
     FindingUpdate,
     GovernanceSettingPublic,
@@ -488,6 +489,11 @@ def update_finding(finding_id: str, payload: FindingUpdate, user: AdminUser, ses
 @app.delete("/api/v1/findings/{finding_id}", status_code=204)
 def delete_finding(finding_id: str, user: AdminUser, session: Annotated[Session, Depends(get_session)]):
     finding = get_accessible_finding(session, user, finding_id)
+    delete_finding_records(session, finding, user)
+    session.commit()
+
+
+def delete_finding_records(session: Session, finding: Finding, user: User) -> None:
     before = {"finding_no": finding.finding_no, "title": finding.title, "status": finding.status.value}
     session.execute(delete(Verification).where(Verification.finding_id == finding.id))
     session.execute(delete(Remediation).where(Remediation.finding_id == finding.id))
@@ -496,7 +502,18 @@ def delete_finding(finding_id: str, user: AdminUser, session: Annotated[Session,
     session.execute(delete(FindingEvent).where(FindingEvent.finding_id == finding.id))
     session.delete(finding)
     audit(session, user, "FINDING_DELETED", "finding", finding.id, before, None)
+
+
+@app.post("/api/v1/findings/bulk-delete")
+def bulk_delete_findings(payload: FindingBulkDelete, user: AdminUser, session: Annotated[Session, Depends(get_session)]):
+    unique_ids = list(dict.fromkeys(payload.ids))
+    findings = session.scalars(select(Finding).where(Finding.id.in_(unique_ids))).all()
+    if len(findings) != len(unique_ids):
+        raise HTTPException(status_code=404, detail={"code": "FINDING_NOT_FOUND", "message": "部分风险不存在，请刷新后重试"})
+    for finding in findings:
+        delete_finding_records(session, finding, user)
     session.commit()
+    return {"deleted_count": len(findings)}
 
 
 @app.get("/api/v1/findings/{finding_id}/observations", response_model=list[ObservationPublic])

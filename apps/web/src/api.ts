@@ -48,10 +48,16 @@ export async function transitionFinding(finding: Finding, action: string, reason
   return api<Finding>(`/api/v1/findings/${finding.id}/transitions`, { method: "POST", body: JSON.stringify({ action, reason, version: finding.version }) });
 }
 
-export function findingQuery(params: { q?: string; severity?: string; status?: string } = {}) {
+export function findingQuery(params: { q?: string; severity?: string; status?: string; page?: number; pageSize?: number } = {}) {
   const query = new URLSearchParams();
   if (params.q) query.set("q", params.q);
   if (params.severity) query.set("severity", params.severity);
   if (params.status) query.set("status", params.status);
+  if (params.page) query.set("page", String(params.page));
+  if (params.pageSize) query.set("page_size", String(params.pageSize));
   return api<FindingPage>(`/api/v1/findings?${query}`);
+}
+
+export function deleteFindings(ids: string[]) {
+  return api<{ deleted_count: number }>("/api/v1/findings/bulk-delete", { method: "POST", body: JSON.stringify({ ids }) });
 }

@@ -13,7 +13,7 @@ import {
 } from "@ant-design/icons";
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import dayjs from "dayjs";
-import { api, clearToken, downloadFile, findingQuery, getToken, login, transitionFinding } from "./api";
+import { api, clearToken, deleteFindings, downloadFile, findingQuery, getToken, login, transitionFinding } from "./api";
 import type { Asset, AuditEvent, Batch, Finding, FindingEvent, FindingStatus, GovernanceSetting, Observation, Role, Severity, Source, User } from "./types";
 
 const { Header, Sider, Content } = Layout;
@@ -211,16 +211,21 @@ function FindingsPage({ myWork = false, admin = false }: { myWork?: boolean; adm
   const [q, setQ] = useState(initial.get("q") || "");
   const [severity, setSeverity] = useState<string | undefined>(initial.get("severity") || undefined);
   const [status, setStatus] = useState<string | undefined>(initial.get("status") || undefined);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [editing, setEditing] = useState<Finding | null>(null);
   const [form] = Form.useForm();
-  const findings = useQuery({ queryKey: ["findings", q, severity, status, myWork], queryFn: () => findingQuery({ q, severity, status }) });
+  const findings = useQuery({ queryKey: ["findings", q, severity, status, myWork, page, pageSize], queryFn: () => findingQuery({ q, severity, status, page, pageSize }) });
   const assets = useQuery({ queryKey: ["assets"], queryFn: () => api<Asset[]>("/api/v1/assets"), enabled: admin });
   const save = useMutation({ mutationFn: (values: any) => api<Finding>(`/api/v1/findings/${editing!.id}`, { method: "PATCH", body: JSON.stringify({ ...values, version: editing!.version }) }), onSuccess: async () => { message.success("风险信息已更新"); setEditing(null); form.resetFields(); await queryClient.invalidateQueries({ queryKey: ["findings"] }); }, onError: error => message.error(error instanceof Error ? error.message : "风险保存失败") });
+  const bulkRemove = useMutation({ mutationFn: deleteFindings, onSuccess: async result => { const remaining = Math.max(0, (findings.data?.total || 0) - result.deleted_count); setPage(current => Math.min(current, Math.max(1, Math.ceil(remaining / pageSize)))); setSelectedIds([]); message.success(`已删除 ${result.deleted_count} 项风险`); await queryClient.invalidateQueries({ queryKey: ["findings"] }); }, onError: error => message.error(error instanceof Error ? error.message : "批量删除失败") });
   const remove = (finding: Finding) => Modal.confirm({ title: "删除风险", content: `确定删除“${finding.title}”吗？相关发现记录和治理过程也会一并删除，且无法恢复。`, okText: "确认删除", okType: "danger", cancelText: "取消", onOk: async () => { try { await api<void>(`/api/v1/findings/${finding.id}`, { method: "DELETE" }); message.success("风险已删除"); await queryClient.invalidateQueries({ queryKey: ["findings"] }); } catch (error) { message.error(error instanceof Error ? error.message : "风险删除失败"); } } });
+  const confirmBulkRemove = () => Modal.confirm({ title: `批量删除 ${selectedIds.length} 项风险`, content: "所选风险的发现记录和治理过程也会一并删除，且无法恢复。", okText: "确认批量删除", okType: "danger", cancelText: "取消", onOk: () => bulkRemove.mutateAsync(selectedIds) });
   const edit = async (finding: Finding) => { const detail = await api<Finding>(`/api/v1/findings/${finding.id}`); setEditing(detail); form.setFieldsValue({ title: detail.title, category: detail.category || "general", description: detail.description, recommendation: detail.recommendation, severity: detail.severity, asset_id: detail.asset.id, reason: "修正导入数据" }); };
   return <><PageHeader title={myWork ? "我的待办" : "风险台账"} description={myWork ? "仅展示当前角色有权处理的风险" : "统一查看、分级和跟踪所有风险"} />
-    <Card className="filter-card"><Space wrap><Input.Search allowClear placeholder="搜索编号或标题" value={q} onChange={e => setQ(e.target.value)} /><Select allowClear placeholder="全部等级" value={severity} onChange={setSeverity} options={(Object.keys(severityLabels) as Severity[]).map(value => ({ value, label: severityLabels[value] }))} /><Select allowClear placeholder="全部状态" value={status} onChange={setStatus} options={(Object.keys(statusLabels) as FindingStatus[]).map(value => ({ value, label: statusLabels[value] }))} /><Text type="secondary">共 {findings.data?.total || 0} 项</Text></Space></Card>
-    <Card className="table-card"><Table rowKey="id" loading={findings.isLoading} dataSource={findings.data?.items || []} pagination={{ pageSize: 20, total: findings.data?.total }} onRow={record => ({ onClick: () => navigate(`/findings/${record.id}`) })} columns={[
+    <Card className="filter-card"><Space wrap><Input.Search allowClear placeholder="搜索编号或标题" value={q} onChange={e => { setQ(e.target.value); setPage(1); setSelectedIds([]); }} /><Select allowClear placeholder="全部等级" value={severity} onChange={value => { setSeverity(value); setPage(1); setSelectedIds([]); }} options={(Object.keys(severityLabels) as Severity[]).map(value => ({ value, label: severityLabels[value] }))} /><Select allowClear placeholder="全部状态" value={status} onChange={value => { setStatus(value); setPage(1); setSelectedIds([]); }} options={(Object.keys(statusLabels) as FindingStatus[]).map(value => ({ value, label: statusLabels[value] }))} /><Text type="secondary">共 {findings.data?.total || 0} 项</Text>{admin && <Button danger icon={<DeleteOutlined />} disabled={!selectedIds.length} loading={bulkRemove.isPending} onClick={confirmBulkRemove}>批量删除{selectedIds.length ? ` (${selectedIds.length})` : ""}</Button>}</Space></Card>
+    <Card className="table-card"><Table rowKey="id" loading={findings.isLoading} dataSource={findings.data?.items || []} rowSelection={admin ? { selectedRowKeys: selectedIds, preserveSelectedRowKeys: true, onChange: keys => setSelectedIds(keys.map(String)), onCell: () => ({ onClick: event => event.stopPropagation() }) } : undefined} pagination={{ current: page, pageSize, total: findings.data?.total || 0, showSizeChanger: true, showTotal: total => `共 ${total} 项`, onChange: (nextPage, nextPageSize) => { setPage(nextPageSize === pageSize ? nextPage : 1); setPageSize(nextPageSize); } }} onRow={record => ({ onClick: () => navigate(`/findings/${record.id}`) })} columns={[
       { title: "风险", dataIndex: "title", render: (_, row) => <div><Text className="finding-no">{row.finding_no}</Text><br /><strong>{row.title}</strong></div> },
       { title: "等级", dataIndex: "severity", render: value => <SeverityTag value={value} /> },
       { title: "状态", dataIndex: "status", render: value => <StatusTag value={value} /> },
