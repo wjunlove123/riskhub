@@ -26,6 +26,18 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="RISKHUB_", env_file=PROJECT_ROOT / ".env", extra="ignore")
 
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls,
+        init_settings,
+        env_settings,
+        dotenv_settings,
+        file_secret_settings,
+    ):
+        # The portable local package treats its root .env as authoritative.
+        return init_settings, dotenv_settings, env_settings, file_secret_settings
+
     @property
     def allowed_origins(self) -> list[str]:
         return [item.strip() for item in self.cors_origins.split(",") if item.strip()]
