@@ -81,6 +81,23 @@ body { color: var(--ink); background: var(--canvas); font-family: -apple-system,
 .header-spacer { flex: 1; }
 .global-search { width: min(320px, 25vw); }
 .role-badge { min-height: 30px; margin: 0; padding: 4px 10px; display: inline-flex; align-items: center; gap: 4px; font-size: 13px; }
+.notification-panel { width: min(380px, calc(100vw - 32px)); }
+.notification-panel__header { padding: 4px 4px 12px; display: flex; align-items: baseline; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--line); }
+.notification-panel__header strong { color: var(--ink); font-size: 15px; }
+.notification-panel__header span { color: var(--muted); font-size: 12px; }
+.notification-panel__list { max-height: 384px; overflow-y: auto; }
+.notification-panel__loading { min-height: 112px; display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--muted); }
+.notification-panel__list .ant-empty { margin-block: 24px; }
+.notification-item { width: 100%; padding: 12px 4px; display: grid; grid-template-columns: 9px 1fr; align-items: start; gap: 10px; color: var(--ink); background: transparent; border: 0; border-bottom: 1px solid color-mix(in srgb, var(--line) 72%, transparent); text-align: left; cursor: pointer; }
+.notification-item:hover, .notification-item:focus-visible { background: color-mix(in srgb, var(--brand) 7%, var(--panel)); outline: none; }
+.notification-item__dot { width: 8px; height: 8px; margin-top: 6px; background: var(--brand); border-radius: 50%; box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 13%, transparent); }
+.notification-item__dot.is-error { background: var(--metric-red); box-shadow: 0 0 0 3px color-mix(in srgb, var(--metric-red) 13%, transparent); }
+.notification-item__dot.is-warning { background: var(--metric-orange); box-shadow: 0 0 0 3px color-mix(in srgb, var(--metric-orange) 13%, transparent); }
+.notification-item span { min-width: 0; display: grid; gap: 4px; }
+.notification-item strong { color: var(--ink); font-size: 13px; }
+.notification-item small { overflow: hidden; color: var(--muted); font-size: 12px; line-height: 1.5; text-overflow: ellipsis; white-space: nowrap; }
+.notification-panel__footer { width: 100%; padding: 11px 4px 2px; color: var(--brand); background: transparent; border: 0; text-align: center; cursor: pointer; }
+.notification-panel__footer:hover, .notification-panel__footer:focus-visible { color: color-mix(in srgb, var(--brand) 75%, white); outline: none; }
 .app-sider { position: sticky !important; top: 64px; height: calc(100vh - 64px); overflow: auto; background: var(--panel) !important; border-right: 1px solid var(--line); }
 .app-sider .ant-menu { padding-top: 18px; background: transparent; border-inline-end: 0 !important; }
 .demo-note { margin: 22px 14px; padding: 13px; color: var(--muted); background: color-mix(in srgb, var(--brand) 5%, var(--panel)); border: 1px solid var(--line); border-radius: 8px; font-size: 12px; }

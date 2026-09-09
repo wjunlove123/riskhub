@@ -1,8 +1,8 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Alert, App as AntApp, Button, Card, ConfigProvider, Descriptions, Form, Input, InputNumber, Layout, Menu, Modal,
-  Progress, Select, Space, Spin, Statistic, Switch, Table, Tabs, Tag, Timeline, Typography, Upload,
+  Alert, App as AntApp, Badge, Button, Card, ConfigProvider, Descriptions, Empty, Form, Input, InputNumber, Layout, Menu, Modal,
+  Popover, Progress, Select, Space, Spin, Statistic, Switch, Table, Tabs, Tag, Timeline, Typography, Upload,
   message, theme as antdTheme
 } from "antd";
 import {
@@ -41,6 +41,54 @@ function BrandMark({ large = false }: { large?: boolean }) {
     <span className="riskhub-mark__loop" aria-hidden="true" />
     <span className="riskhub-mark__check" aria-hidden="true" />
   </span>;
+}
+
+export interface RiskNotification {
+  id: string;
+  findingId: string;
+  title: string;
+  description: string;
+  level: "error" | "warning" | "info";
+  dueAt?: string;
+}
+
+const terminalStatuses: FindingStatus[] = ["closed", "false_positive", "risk_accepted"];
+
+export function buildRiskNotifications(findings: Finding[], role: Role, now = dayjs()): RiskNotification[] {
+  const upcomingBoundary = now.add(3, "day");
+  const notifications = findings.flatMap((finding): RiskNotification[] => {
+    if (terminalStatuses.includes(finding.status)) return [];
+    const dueAt = finding.due_at ? dayjs(finding.due_at) : undefined;
+    const base = { id: finding.id, findingId: finding.id, dueAt: finding.due_at };
+    if (dueAt?.isBefore(now)) return [{ ...base, title: "风险已逾期", description: `${finding.finding_no} · ${finding.title} · 截止 ${dateText(finding.due_at)}`, level: "error" }];
+    if (dueAt && !dueAt.isAfter(upcomingBoundary)) return [{ ...base, title: "风险即将到期", description: `${finding.finding_no} · ${finding.title} · 截止 ${dateText(finding.due_at)}`, level: "warning" }];
+    if (role === "remediator" && ["pending_remediation", "in_remediation"].includes(finding.status)) return [{ ...base, title: "待处理整改", description: `${finding.finding_no} · ${finding.title}`, level: "info" }];
+    if (role === "verifier" && finding.status === "pending_verification") return [{ ...base, title: "待验证风险", description: `${finding.finding_no} · ${finding.title}`, level: "info" }];
+    if (role === "platform_admin" && finding.status === "pending_confirmation") return [{ ...base, title: "待确认风险", description: `${finding.finding_no} · ${finding.title}`, level: "info" }];
+    if (role === "platform_admin" && finding.status === "acceptance_requested") return [{ ...base, title: "风险接受待审批", description: `${finding.finding_no} · ${finding.title}`, level: "info" }];
+    return [];
+  });
+  const levelOrder = { error: 0, warning: 1, info: 2 };
+  return notifications.sort((left, right) => levelOrder[left.level] - levelOrder[right.level] || (left.dueAt || "9999").localeCompare(right.dueAt || "9999"));
+}
+
+export function NotificationCenter({ notifications, loading, onOpen, onViewAll }: { notifications: RiskNotification[]; loading?: boolean; onOpen: (findingId: string) => void; onViewAll: () => void }) {
+  const [open, setOpen] = useState(false);
+  const content = <div className="notification-panel">
+    <div className="notification-panel__header"><strong>消息提醒</strong><span>{notifications.length ? `${notifications.length} 条待处理` : "全部处理完毕"}</span></div>
+    <div className="notification-panel__list">
+      {loading ? <div className="notification-panel__loading"><Spin size="small" /> 正在加载提醒</div> : notifications.length ? notifications.slice(0, 8).map(item => <button key={item.id} type="button" className="notification-item" onClick={() => { setOpen(false); onOpen(item.findingId); }}>
+        <i className={`notification-item__dot is-${item.level}`} aria-hidden="true" />
+        <span><strong>{item.title}</strong><small>{item.description}</small></span>
+      </button>) : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无待处理提醒" />}
+    </div>
+    <button type="button" className="notification-panel__footer" onClick={() => { setOpen(false); onViewAll(); }}>查看全部待办</button>
+  </div>;
+  return <Popover placement="bottomRight" trigger="click" open={open} onOpenChange={setOpen} content={content} arrow={false}>
+    <Badge count={notifications.length} size="small" overflowCount={99} offset={[-2, 3]}>
+      <Button icon={<AlertOutlined />} aria-label={`消息提醒，${notifications.length} 条`}>消息提醒</Button>
+    </Badge>
+  </Popover>;
 }
 
 function useCurrentUser(enabled: boolean) {
@@ -113,6 +161,8 @@ function AppShell({ user, onLogout, colorMode, setColorMode }: { user: User; onL
   const location = useLocation();
   const queryClient = useQueryClient();
   const role = user.roles[0];
+  const notificationFindings = useQuery({ queryKey: ["header-notifications", user.id], queryFn: () => findingQuery({ pageSize: 100 }), refetchInterval: 60_000 });
+  const notifications = buildRiskNotifications(notificationFindings.data?.items || [], role);
   const logout = () => { clearToken(); queryClient.clear(); onLogout(); };
   const selectedKey = location.pathname.startsWith("/findings/") ? "/findings" : location.pathname;
   return <Layout className="app-layout">
@@ -122,7 +172,7 @@ function AppShell({ user, onLogout, colorMode, setColorMode }: { user: User; onL
       <div className="header-spacer" />
       <Input.Search className="global-search" placeholder="搜索风险编号、标题或资产" onSearch={value => navigate(`/findings?q=${encodeURIComponent(value)}`)} />
       <Button icon={colorMode === "dark" ? <SunOutlined /> : <MoonOutlined />} onClick={() => setColorMode(colorMode === "dark" ? "light" : "dark")}>{colorMode === "dark" ? "浅色" : "深色"}</Button>
-      <Button icon={<AlertOutlined />}>提醒 <Tag color="red">6</Tag></Button>
+      <NotificationCenter notifications={notifications} loading={notificationFindings.isLoading} onOpen={id => navigate(`/findings/${id}`)} onViewAll={() => navigate("/my-work")} />
       <Tag className="role-badge" icon={<UserOutlined />} color="blue">{roleLabels[role]}</Tag>
       <Button type="text" onClick={logout}>退出</Button>
     </Header>

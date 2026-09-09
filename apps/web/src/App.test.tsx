@@ -2,11 +2,23 @@ import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
-import { App, appThemeTokens, FeishuDirectoryCard, findingCountUnit, RiskTrendChart, riskTrendData, SeverityPie } from "./App";
+import dayjs from "dayjs";
+import { App, appThemeTokens, buildRiskNotifications, FeishuDirectoryCard, findingCountUnit, NotificationCenter, RiskTrendChart, riskTrendData, SeverityPie } from "./App";
 import { api, deleteFindings, findingQuery } from "./api";
+import type { Finding } from "./types";
 
 function LocationProbe() {
   return <span data-testid="location">{useLocation().pathname}{useLocation().search}</span>;
+}
+
+function findingFixture(overrides: Partial<Finding>): Finding {
+  return {
+    id: "finding-1", finding_no: "RH-2026-0001", title: "开放的管理端口", severity: "high", risk_score: 8,
+    priority: "P1", status: "pending_remediation", first_seen_at: "2026-09-01T00:00:00Z", last_seen_at: "2026-09-01T00:00:00Z",
+    observation_count: 1, source_count: 1, version: 1, allowed_actions: [],
+    asset: { id: "asset-1", asset_code: "OPS-1", name: "运维平台", type: "应用", team: "SRE", importance: "high", exposure: "internal", status: "active" },
+    ...overrides
+  };
 }
 
 describe("RiskHub application", () => {
@@ -19,6 +31,27 @@ describe("RiskHub application", () => {
 
   it("uses a Chinese unit for finding metrics", () => {
     expect(findingCountUnit).toBe("项风险");
+  });
+
+  it("builds role-aware notifications and prioritizes overdue risks without duplicates", () => {
+    const now = dayjs("2026-09-09T12:00:00Z");
+    const notifications = buildRiskNotifications([
+      findingFixture({ due_at: "2026-09-08T12:00:00Z" }),
+      findingFixture({ id: "finding-2", finding_no: "RH-2026-0002", due_at: "2026-09-11T12:00:00Z" }),
+      findingFixture({ id: "finding-3", finding_no: "RH-2026-0003", due_at: "2026-10-01T12:00:00Z" }),
+      findingFixture({ id: "finding-4", status: "closed", due_at: "2026-09-01T12:00:00Z" })
+    ], "remediator", now);
+    expect(notifications.map(item => item.title)).toEqual(["风险已逾期", "风险即将到期", "待处理整改"]);
+    expect(notifications.filter(item => item.findingId === "finding-1")).toHaveLength(1);
+  });
+
+  it("opens the notification panel and navigates through a notification", async () => {
+    const onOpen = vi.fn();
+    render(<NotificationCenter notifications={[{ id: "finding-1", findingId: "finding-1", title: "风险已逾期", description: "RH-2026-0001 · 开放的管理端口", level: "error" }]} onOpen={onOpen} onViewAll={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "消息提醒，1 条" }));
+    expect(await screen.findByText("1 条待处理")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("风险已逾期"));
+    expect(onOpen).toHaveBeenCalledWith("finding-1");
   });
 
   it("renders a readable six-month risk trend", () => {
