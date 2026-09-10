@@ -13,7 +13,9 @@ os.environ["RISKHUB_JWT_SECRET"] = "test-secret-key"
 os.environ["RISKHUB_ENVIRONMENT"] = "test"
 os.environ["RISKHUB_STORAGE_DIR"] = str(Path(__file__).with_name("storage-test"))
 
-from riskhub.main import app  # noqa: E402
+from riskhub.main import app, settings  # noqa: E402
+
+settings.feishu_reminders_enabled = False
 
 
 @pytest.fixture(scope="session")
@@ -43,4 +45,3 @@ def remediator_headers(client):
 @pytest.fixture(scope="session")
 def verifier_headers(client):
     return login_headers(client, "verifier")
-

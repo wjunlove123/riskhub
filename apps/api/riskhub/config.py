@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     feishu_api_base_url: str = "https://open.feishu.cn/open-apis"
     feishu_ca_bundle: str = ""
     feishu_https_proxy: str = ""
+    feishu_reminders_enabled: bool = True
+    feishu_reminder_poll_seconds: int = 3600
+    feishu_reminder_timezone: str = "Asia/Shanghai"
 
     model_config = SettingsConfigDict(env_prefix="RISKHUB_", env_file=PROJECT_ROOT / ".env", extra="ignore")
 

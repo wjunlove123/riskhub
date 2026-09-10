@@ -82,6 +82,7 @@ def test_admin_syncs_feishu_directory_and_dispatches_risk(client, admin_headers,
     assert assigned.status_code == 200, assigned.text
     assert sent_messages[0][0] == "ou-sre-1"
     assert sent_messages[0][1]["finding_id"] == finding["id"]
+    assert sent_messages[0][1]["recipient_name"] == "飞书整改人员"
 
 
 def test_admin_can_edit_and_delete_finding(client, admin_headers, remediator_headers):

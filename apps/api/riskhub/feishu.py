@@ -123,17 +123,38 @@ def list_department_users() -> list[dict[str, Any]]:
     return list(users_by_id.values())
 
 
-def send_assignment_message(open_id: str, *, finding_id: str, finding_no: str, title: str, severity: str, due_at: str) -> None:
+def _send_risk_message(open_id: str, lines: list[str], *, operation: str) -> None:
     if not settings.feishu_configured:
         return
     token = tenant_access_token()
-    lines = [f"RiskHub 风险派发：{finding_no}", f"等级：{severity}", f"标题：{title}", f"截止时间：{due_at}"]
-    if settings.feishu_risk_base_url:
-        lines.append(f"查看详情：{settings.feishu_risk_base_url.rstrip('/')}/findings/{finding_id}")
     _request(
         "POST",
         "/im/v1/messages?receive_id_type=open_id",
-        operation="发送风险派发消息",
+        operation=operation,
         token=token,
         payload={"receive_id": open_id, "msg_type": "text", "content": json.dumps({"text": "\n".join(lines)}, ensure_ascii=False)},
     )
+
+
+def _risk_message_lines(*, recipient_name: str, heading: str, finding_id: str, finding_no: str, title: str, severity: str, due_at: str, reminder_text: str | None = None) -> list[str]:
+    lines = [
+        f"Hi，{recipient_name or '同事'}，你有一条风险项需要整改，请尽快完成，感谢配合！",
+        "",
+        f"{heading}：{finding_no}",
+        f"等级：{severity}",
+        f"标题：{title}",
+        f"截止时间：{due_at}",
+    ]
+    if reminder_text:
+        lines.append(f"提醒：{reminder_text}")
+    if settings.feishu_risk_base_url:
+        lines.append(f"查看详情：{settings.feishu_risk_base_url.rstrip('/')}/findings/{finding_id}")
+    return lines
+
+
+def send_assignment_message(open_id: str, *, recipient_name: str, finding_id: str, finding_no: str, title: str, severity: str, due_at: str) -> None:
+    _send_risk_message(open_id, _risk_message_lines(recipient_name=recipient_name, heading="RiskHub 风险派发", finding_id=finding_id, finding_no=finding_no, title=title, severity=severity, due_at=due_at), operation="发送风险派发消息")
+
+
+def send_remediation_reminder(open_id: str, *, recipient_name: str, finding_id: str, finding_no: str, title: str, severity: str, due_at: str, reminder_text: str) -> None:
+    _send_risk_message(open_id, _risk_message_lines(recipient_name=recipient_name, heading="RiskHub 风险整改提醒", finding_id=finding_id, finding_no=finding_no, title=title, severity=severity, due_at=due_at, reminder_text=reminder_text), operation="发送风险整改提醒")

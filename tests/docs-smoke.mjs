@@ -57,6 +57,8 @@ assert.match(readme, /飞书通讯录/);
 assert.match(readme, /配置优先于操作系统中的同名变量/);
 assert.match(readme, /RISKHUB_FEISHU_DEPARTMENT_IDS=od_first_department,od_second_department/);
 assert.match(readme, /RISKHUB_FEISHU_HTTPS_PROXY=http:\/\/proxy\.company\.internal:8080/);
+assert.match(readme, /从到期前 3 天至逾期后 7 天/);
+assert.match(readme, /RISKHUB_FEISHU_REMINDER_TIMEZONE=Asia\/Shanghai/);
 assert.match(envExample, /RISKHUB_FEISHU_DEPARTMENT_ID=od_your_sre_department_id/);
 assert.doesNotMatch(envExample, /od-a0ff0bcc4a5173877e9bd5db353bd8e0/);
 

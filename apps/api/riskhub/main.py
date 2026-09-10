@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import io
 import json
@@ -35,6 +36,7 @@ from .models import (
     FindingStatus,
     GovernanceSetting,
     ImportBatch,
+    NotificationDelivery,
     Observation,
     Remediation,
     RiskAcceptance,
@@ -78,6 +80,7 @@ from .schemas import (
     VerificationCreate,
 )
 from .feishu import FeishuAPIError, list_department_users, send_assignment_message
+from .reminders import run_remediation_reminder_job
 from .security import AdminUser, CurrentUser, authenticate, create_access_token, hash_password
 from .seed import seed_database
 from .services import SEVERITY_PRIORITY, SEVERITY_SCORE, allowed_actions, audit, finding_event, ingest_records, transition_finding
@@ -96,13 +99,34 @@ DEFAULT_GOVERNANCE_SETTINGS = {
 }
 
 
+async def remediation_reminder_loop(stop_event: asyncio.Event) -> None:
+    while not stop_event.is_set():
+        try:
+            result = await asyncio.to_thread(run_remediation_reminder_job)
+            if result["sent"] or result["failed"]:
+                logger.info("Feishu remediation reminder job completed: %s", result)
+        except Exception:
+            logger.exception("Feishu remediation reminder job crashed")
+        try:
+            await asyncio.wait_for(stop_event.wait(), timeout=max(60, settings.feishu_reminder_poll_seconds))
+        except TimeoutError:
+            pass
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     settings.storage_dir.mkdir(parents=True, exist_ok=True)
     create_schema()
     with SessionLocal() as session:
         seed_database(session)
-    yield
+    stop_event = asyncio.Event()
+    reminder_task = asyncio.create_task(remediation_reminder_loop(stop_event)) if settings.feishu_reminders_enabled else None
+    try:
+        yield
+    finally:
+        stop_event.set()
+        if reminder_task:
+            await reminder_task
 
 
 app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=lifespan)
@@ -577,6 +601,7 @@ def delete_finding_records(session: Session, finding: Finding, user: User) -> No
     session.execute(delete(RiskAcceptance).where(RiskAcceptance.finding_id == finding.id))
     session.execute(delete(Observation).where(Observation.finding_id == finding.id))
     session.execute(delete(FindingEvent).where(FindingEvent.finding_id == finding.id))
+    session.execute(delete(NotificationDelivery).where(NotificationDelivery.finding_id == finding.id))
     session.delete(finding)
     audit(session, user, "FINDING_DELETED", "finding", finding.id, before, None)
 
@@ -614,6 +639,7 @@ def update_assignment(finding_id: str, payload: AssignmentUpdate, user: AdminUse
     users = session.scalars(select(User).where(User.id.in_([payload.owner_id, payload.assignee_id, payload.verifier_id]))).all()
     if len(users) != 3:
         raise HTTPException(status_code=422, detail={"code": "INVALID_USERS", "message": "分派用户不存在"})
+    assignee = next(item for item in users if item.id == payload.assignee_id)
     before = {"owner_id": finding.owner_id, "assignee_id": finding.assignee_id, "verifier_id": finding.verifier_id, "due_at": finding.due_at.isoformat() if finding.due_at else None}
     finding.owner_id, finding.assignee_id, finding.verifier_id, finding.due_at = payload.owner_id, payload.assignee_id, payload.verifier_id, payload.due_at
     finding.version += 1
@@ -624,6 +650,7 @@ def update_assignment(finding_id: str, payload: AssignmentUpdate, user: AdminUse
         try:
             send_assignment_message(
                 directory_member.external_user_id,
+                recipient_name=assignee.display_name,
                 finding_id=finding.id,
                 finding_no=finding.finding_no,
                 title=finding.title,

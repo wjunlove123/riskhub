@@ -108,3 +108,25 @@ def test_feishu_network_error_identifies_the_failed_operation(monkeypatch):
 
     with pytest.raises(feishu.FeishuAPIError, match="读取 SRE 部门通讯录失败.*certificate verify failed"):
         feishu._request("GET", "/contact/v3/users", operation="读取 SRE 部门通讯录", token="token")
+
+
+def test_assignment_message_starts_with_personalized_remediation_greeting(monkeypatch):
+    monkeypatch.setattr(feishu.settings, "feishu_app_id", "test-app")
+    monkeypatch.setattr(feishu.settings, "feishu_app_secret", "test-secret")
+    monkeypatch.setattr(feishu.settings, "feishu_department_ids", "od-test")
+    monkeypatch.setattr(feishu, "tenant_access_token", lambda: "token")
+    requests = []
+    monkeypatch.setattr(feishu, "_request", lambda method, path, **kwargs: requests.append((method, path, kwargs)) or {"code": 0})
+
+    feishu.send_assignment_message(
+        "ou-remediator",
+        recipient_name="张三",
+        finding_id="finding-1",
+        finding_no="RH-2026-0001",
+        title="开放的管理端口",
+        severity="high",
+        due_at="2026-09-13T12:00:00+00:00",
+    )
+
+    message = json.loads(requests[0][2]["payload"]["content"])["text"]
+    assert message.startswith("Hi，张三，你有一条风险项需要整改，请尽快完成，感谢配合！\n\nRiskHub 风险派发")
