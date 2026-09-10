@@ -10,6 +10,7 @@ from .services import calculate_due_at, ingest_records
 
 
 DEMO_PASSWORD = "RiskHub123!"
+DEFAULT_WORKFLOW_USERNAMES = ("remediator", "verifier")
 
 
 def seed_database(session: Session) -> None:
@@ -76,4 +77,3 @@ def seed_database(session: Session) -> None:
             finding.sla_started_at = utcnow() - timedelta(days=2)
         finding.version += 1
     session.commit()
-

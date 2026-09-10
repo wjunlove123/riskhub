@@ -54,6 +54,7 @@ for (const platform of ["macOS / Linux", "Windows PowerShell"]) {
 assert.match(readme, /不要直接使用 `file:\/\//);
 assert.match(readme, /尚未作为默认运行依赖接入/);
 assert.match(readme, /飞书通讯录/);
+assert.match(readme, /默认整改人员和验证人员账号仅用于本地角色演示/);
 assert.match(readme, /配置优先于操作系统中的同名变量/);
 assert.match(readme, /RISKHUB_FEISHU_DEPARTMENT_IDS=od_first_department,od_second_department/);
 assert.match(readme, /RISKHUB_FEISHU_HTTPS_PROXY=http:\/\/proxy\.company\.internal:8080/);

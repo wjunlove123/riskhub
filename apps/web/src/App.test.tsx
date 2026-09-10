@@ -42,7 +42,7 @@ describe("RiskHub application", () => {
   it("filters assignable people by role, display name, and username", () => {
     const remediators = buildPersonOptions(directoryUsers, "remediator");
     expect(remediators).toHaveLength(1);
-    expect(remediators[0].label).toBe("张三（feishu_ou_zhangsan）");
+    expect(remediators[0].label).toBe("张三");
     expect(filterPersonOption("张三", remediators[0])).toBe(true);
     expect(filterPersonOption("OU_ZHANGSAN", remediators[0])).toBe(true);
     expect(filterPersonOption("李四", remediators[0])).toBe(false);

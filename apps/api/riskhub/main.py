@@ -82,7 +82,7 @@ from .schemas import (
 from .feishu import FeishuAPIError, list_department_users, send_assignment_message
 from .reminders import run_remediation_reminder_job
 from .security import AdminUser, CurrentUser, authenticate, create_access_token, hash_password
-from .seed import seed_database
+from .seed import DEFAULT_WORKFLOW_USERNAMES, seed_database
 from .services import SEVERITY_PRIORITY, SEVERITY_SCORE, allowed_actions, audit, finding_event, ingest_records, transition_finding
 
 
@@ -213,7 +213,7 @@ def me(user: CurrentUser):
 
 @app.get("/api/v1/users", response_model=list[UserPublic])
 def users(_: AdminUser, session: Annotated[Session, Depends(get_session)]):
-    return session.scalars(select(User).where(User.enabled.is_(True)).order_by(User.display_name)).all()
+    return session.scalars(select(User).where(User.enabled.is_(True), User.username.not_in(DEFAULT_WORKFLOW_USERNAMES)).order_by(User.display_name)).all()
 
 
 @app.get("/api/v1/integrations/feishu", response_model=FeishuDirectoryStatus)

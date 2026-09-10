@@ -354,7 +354,7 @@ export interface PersonOption { value: string; label: string; searchText: string
 export function buildPersonOptions(users: User[], role: Role): PersonOption[] {
   return users
     .filter(user => user.roles.includes(role))
-    .map(user => ({ value: user.id, label: `${user.display_name}（${user.username}）`, searchText: `${user.display_name} ${user.username}`.toLocaleLowerCase() }))
+    .map(user => ({ value: user.id, label: user.display_name, searchText: `${user.display_name} ${user.username}`.toLocaleLowerCase() }))
     .sort((left, right) => left.label.localeCompare(right.label, "zh-CN"));
 }
 

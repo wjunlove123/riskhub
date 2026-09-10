@@ -2,6 +2,10 @@ import io
 from datetime import datetime, timedelta, timezone
 
 from openpyxl import Workbook, load_workbook
+from sqlalchemy import select
+
+from riskhub.database import SessionLocal
+from riskhub.models import User
 
 
 def first_with_status(client, headers, status):
@@ -12,6 +16,11 @@ def first_with_status(client, headers, status):
     return items[0]
 
 
+def stored_user_id(username):
+    with SessionLocal() as session:
+        return session.scalar(select(User.id).where(User.username == username))
+
+
 def test_health_login_and_current_user(client, admin_headers):
     assert client.get("/health").json()["status"] == "ok"
     response = client.get("/api/v1/me", headers=admin_headers)
@@ -20,6 +29,12 @@ def test_health_login_and_current_user(client, admin_headers):
     assert response.headers["x-request-id"]
     assert response.headers["x-content-type-options"] == "nosniff"
     assert response.headers["x-frame-options"] == "DENY"
+
+
+def test_assignable_user_list_hides_default_workflow_accounts(client, admin_headers):
+    usernames = {item["username"] for item in client.get("/api/v1/users", headers=admin_headers).json()}
+    assert "remediator" not in usernames
+    assert "verifier" not in usernames
 
 
 def test_role_scoped_access_and_admin_only_endpoint(client, admin_headers, remediator_headers):
@@ -67,7 +82,7 @@ def test_admin_syncs_feishu_directory_and_dispatches_risk(client, admin_headers,
 
     users = client.get("/api/v1/users", headers=admin_headers).json()
     assignee = next(item for item in users if item["display_name"] == "飞书整改人员")
-    verifier = next(item for item in users if item["username"] == "verifier")
+    verifier = next(item for item in users if item["display_name"] == "飞书验证人员")
     admin = next(item for item in users if item["username"] == "admin")
     finding = first_with_status(client, admin_headers, "pending_confirmation")
     assigned = client.patch(
@@ -285,8 +300,8 @@ def test_full_remediation_and_verification_workflow(client, admin_headers, remed
     finding = first_with_status(client, admin_headers, "pending_confirmation")
     users = client.get("/api/v1/users", headers=admin_headers).json()
     admin = next(item for item in users if "platform_admin" in item["roles"])
-    remediator = next(item for item in users if "remediator" in item["roles"])
-    verifier = next(item for item in users if "verifier" in item["roles"])
+    remediator = {"id": stored_user_id("remediator")}
+    verifier = {"id": stored_user_id("verifier")}
     assigned = client.patch(
         f"/api/v1/findings/{finding['id']}/assignment",
         headers=admin_headers,
