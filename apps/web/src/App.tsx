@@ -349,10 +349,31 @@ function StepsBar({ status }: { status: FindingStatus }) {
   return <div className="steps-bar">{steps.map((step, index) => <div key={step} className={index < current ? "done" : index === current ? "current" : ""}><span />{statusLabels[step]}</div>)}</div>;
 }
 
+export interface PersonOption { value: string; label: string; searchText: string; }
+
+export function buildPersonOptions(users: User[], role: Role): PersonOption[] {
+  return users
+    .filter(user => user.roles.includes(role))
+    .map(user => ({ value: user.id, label: `${user.display_name}（${user.username}）`, searchText: `${user.display_name} ${user.username}`.toLocaleLowerCase() }))
+    .sort((left, right) => left.label.localeCompare(right.label, "zh-CN"));
+}
+
+export function filterPersonOption(input: string, option?: PersonOption): boolean {
+  return Boolean(option?.searchText.includes(input.trim().toLocaleLowerCase()));
+}
+
+export function PersonSelect({ users, role, placeholder }: { users: User[]; role: Role; placeholder: string }) {
+  return <Select<PersonOption["value"], PersonOption>
+    showSearch={{ filterOption: filterPersonOption }}
+    options={buildPersonOptions(users, role)}
+    placeholder={placeholder}
+    notFoundContent="没有匹配人员"
+  />;
+}
+
 function ActionModal({ modal, users, form, loading, onCancel, onSubmit }: { modal: string | null; users: User[]; form: any; loading: boolean; onCancel: () => void; onSubmit: (values: any) => void }) {
-  const options = (role: Role) => users.filter(user => user.roles.includes(role)).map(user => ({ value: user.id, label: user.display_name }));
   const config: Record<string, { title: string; fields: ReactNode }> = {
-    assign: { title: "分派责任人", fields: <><Form.Item name="owner_id" label="Owner" rules={[{ required: true }]}><Select options={options("platform_admin")} /></Form.Item><Form.Item name="assignee_id" label="整改人" rules={[{ required: true }]}><Select options={options("remediator")} /></Form.Item><Form.Item name="verifier_id" label="验证人" rules={[{ required: true }]}><Select options={options("verifier")} /></Form.Item><Form.Item name="due_at" label="整改截止时间" rules={[{ required: true }]}><Input type="datetime-local" /></Form.Item><Form.Item name="reason" label="分派说明" rules={[{ required: true, min: 2 }]}><Input.TextArea /></Form.Item></> },
+    assign: { title: "分派责任人", fields: <><Form.Item name="owner_id" label="Owner" rules={[{ required: true }]}><PersonSelect users={users} role="platform_admin" placeholder="输入姓名或用户名搜索 Owner" /></Form.Item><Form.Item name="assignee_id" label="整改人" rules={[{ required: true }]}><PersonSelect users={users} role="remediator" placeholder="输入姓名或用户名搜索整改人" /></Form.Item><Form.Item name="verifier_id" label="验证人" rules={[{ required: true }]}><PersonSelect users={users} role="verifier" placeholder="输入姓名或用户名搜索验证人" /></Form.Item><Form.Item name="due_at" label="整改截止时间" rules={[{ required: true }]}><Input type="datetime-local" /></Form.Item><Form.Item name="reason" label="分派说明" rules={[{ required: true, min: 2 }]}><Input.TextArea /></Form.Item></> },
     change_severity: { title: "调整风险等级", fields: <><Form.Item name="severity" label="新等级" rules={[{ required: true }]}><Select options={(Object.keys(severityLabels) as Severity[]).map(value => ({ value, label: severityLabels[value] }))} /></Form.Item><Form.Item name="reason" label="调整原因" rules={[{ required: true, min: 2 }]}><Input.TextArea /></Form.Item></> },
     mark_false_positive: { title: "标记误报", fields: <Form.Item name="reason" label="误报原因" rules={[{ required: true }]}><Input.TextArea /></Form.Item> },
     submit_remediation: { title: "提交整改结果", fields: <><Form.Item name="description" label="整改说明" rules={[{ required: true }]}><Input.TextArea /></Form.Item><Form.Item name="evidence" label="证据链接" rules={[{ required: true, type: "url" }]}><Input placeholder="https://..." /></Form.Item></> },

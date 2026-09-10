@@ -39,7 +39,7 @@ for (const section of ["项目解决什么问题", "主要功能", "安装方法
   assert.match(readme, new RegExp(`^## \\d+\\. ${section}$`, "m"));
 }
 
-for (const implementedCapability of ["自定义录入", "Excel 模板", "确定性去重", "风险接受", "资产中心", "接入中心", "治理配置", "审计日志", "浅色和深色主题", "消息提醒"]) {
+for (const implementedCapability of ["自定义录入", "Excel 模板", "确定性去重", "风险接受", "资产中心", "接入中心", "治理配置", "审计日志", "浅色和深色主题", "消息提醒", "按姓名或用户名快速搜索"]) {
   assert.match(readme, new RegExp(implementedCapability));
 }
 

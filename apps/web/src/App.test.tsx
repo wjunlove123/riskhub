@@ -3,9 +3,9 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import dayjs from "dayjs";
-import { App, appThemeTokens, buildRiskNotifications, FeishuDirectoryCard, findingCountUnit, NotificationCenter, RiskTrendChart, riskTrendData, SeverityPie } from "./App";
+import { App, appThemeTokens, buildPersonOptions, buildRiskNotifications, FeishuDirectoryCard, filterPersonOption, findingCountUnit, NotificationCenter, PersonSelect, RiskTrendChart, riskTrendData, SeverityPie } from "./App";
 import { api, deleteFindings, findingQuery } from "./api";
-import type { Finding } from "./types";
+import type { Finding, User } from "./types";
 
 function LocationProbe() {
   return <span data-testid="location">{useLocation().pathname}{useLocation().search}</span>;
@@ -21,6 +21,12 @@ function findingFixture(overrides: Partial<Finding>): Finding {
   };
 }
 
+const directoryUsers: User[] = [
+  { id: "user-1", username: "feishu_ou_zhangsan", display_name: "张三", roles: ["remediator"] },
+  { id: "user-2", username: "lisi.validator", display_name: "李四", roles: ["verifier"] },
+  { id: "user-3", username: "admin", display_name: "平台管理员", roles: ["platform_admin"] }
+];
+
 describe("RiskHub application", () => {
   it("uses the same dark surface for navigation and detailed data containers", () => {
     const tokens = appThemeTokens("dark");
@@ -31,6 +37,21 @@ describe("RiskHub application", () => {
 
   it("uses a Chinese unit for finding metrics", () => {
     expect(findingCountUnit).toBe("项风险");
+  });
+
+  it("filters assignable people by role, display name, and username", () => {
+    const remediators = buildPersonOptions(directoryUsers, "remediator");
+    expect(remediators).toHaveLength(1);
+    expect(remediators[0].label).toBe("张三（feishu_ou_zhangsan）");
+    expect(filterPersonOption("张三", remediators[0])).toBe(true);
+    expect(filterPersonOption("OU_ZHANGSAN", remediators[0])).toBe(true);
+    expect(filterPersonOption("李四", remediators[0])).toBe(false);
+  });
+
+  it("renders a searchable person selector with a helpful placeholder", () => {
+    render(<PersonSelect users={directoryUsers} role="verifier" placeholder="输入姓名或用户名搜索验证人" />);
+    expect(screen.getByText("输入姓名或用户名搜索验证人")).toBeInTheDocument();
+    expect(screen.getByRole("combobox")).toHaveAttribute("aria-autocomplete", "list");
   });
 
   it("builds role-aware notifications and prioritizes overdue risks without duplicates", () => {
