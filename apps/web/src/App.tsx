@@ -5,6 +5,7 @@ import {
   Popover, Progress, Select, Space, Spin, Statistic, Switch, Table, Tabs, Tag, Timeline, Typography, Upload,
   message, theme as antdTheme
 } from "antd";
+import type { SelectProps } from "antd";
 import {
   AlertOutlined, ApiOutlined, AppstoreOutlined, AuditOutlined, BarChartOutlined,
   CheckSquareOutlined, CloudUploadOutlined, DashboardOutlined, DatabaseOutlined, DeleteOutlined, DownloadOutlined, EditOutlined,
@@ -362,8 +363,11 @@ export function filterPersonOption(input: string, option?: PersonOption): boolea
   return Boolean(option?.searchText.includes(input.trim().toLocaleLowerCase()));
 }
 
-export function PersonSelect({ users, role, placeholder }: { users: User[]; role: Role; placeholder: string }) {
+type PersonSelectProps = Omit<SelectProps<string, PersonOption>, "options" | "showSearch"> & { users: User[]; role: Role; placeholder: string };
+
+export function PersonSelect({ users, role, placeholder, ...selectProps }: PersonSelectProps) {
   return <Select<PersonOption["value"], PersonOption>
+    {...selectProps}
     showSearch={{ filterOption: filterPersonOption }}
     options={buildPersonOptions(users, role)}
     placeholder={placeholder}

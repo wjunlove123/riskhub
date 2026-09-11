@@ -54,6 +54,16 @@ describe("RiskHub application", () => {
     expect(screen.getByRole("combobox")).toHaveAttribute("aria-autocomplete", "list");
   });
 
+  it("forwards person selection changes to an Ant Design form", async () => {
+    const onChange = vi.fn();
+    const selector = render(<PersonSelect users={directoryUsers} role="verifier" placeholder="选择验证人" onChange={onChange} />);
+    const combobox = selector.container.querySelector('[role="combobox"]');
+    expect(combobox).not.toBeNull();
+    fireEvent.mouseDown(combobox!);
+    fireEvent.click(await screen.findByText("李四"));
+    expect(onChange).toHaveBeenCalledWith("user-2", expect.objectContaining({ value: "user-2" }));
+  });
+
   it("builds role-aware notifications and prioritizes overdue risks without duplicates", () => {
     const now = dayjs("2026-09-09T12:00:00Z");
     const notifications = buildRiskNotifications([
